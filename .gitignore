@@ -1,0 +1,16 @@
+# Compiled files
+*.o
+*.out
+*.exe
+*.so
+
+# Build folders
+/build/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+
+# IDE files
+.vscode/
+.idea/
+*.swp
