@@ -14,13 +14,6 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
                                       int N_mu)
 {
 
-    std::vector<float> arr_heating_rates;
-    arr_heating_rates.reserve(arr_z.size());
-
-    for (auto el : arr_z)
-    {
-        arr_heating_rates.emplace_back(1.0 * el);
-    }
-
+    std::vector<float> arr_heating_rates(arr_z.size(), 1.0f);
     return arr_heating_rates;
 }

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include "gnuplot-iostream.h"
 
 #include "MC.h"
 #include "plane_parallel.h"
@@ -8,6 +9,8 @@
 
 int main()
 {
+    
+    std::cout << "Start of program, reading input data" << std::endl;
 
     // Control variables
     std::string CASE = "gpt3";                  // {gpt0, gpt1, gpt3, gpt21}
@@ -16,8 +19,8 @@ int main()
     float dx = 1e8;                             // [m]
     float dy = 1e8;                             // [m]
 
-    int Nphotpow = 21;                          // Total 2^pow number of photons
-    std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, (power-gradient)}
+    int Nphotpow = 20;                          // Total 2^pow number of photons
+    std::string INTERCELL_TECHNIQUE = "uniform";  // {uniform, power, (power-gradient)}
     std::string INTRACELL_TECHNIQUE = "naive";  // {naive, (margin), (edge)}
 
     int N_mu = 20;                              // Number of angles to calculate at each height in PP-algorithm
@@ -54,33 +57,31 @@ int main()
     int itot = arr_z.size();
     int jtot = 1;
     int ktot = 1;
+    
 
-    float xtot = ktot * dx;
-    float ytot = jtot * dy;
-    float ztot = arr_zh[arr_zh.size() - 1];
-
-
+    std::vector<float> heating_rates_MC(itot);
 
     if (ENABLE_MC)
     {
-        std::vector<float> heating_rates_MC = run_MC(arr_z,
-                                                     arr_zh,
-                                                     arr_dz,
-                                                     Bsfc,
-                                                     dx,
-                                                     dy,
-                                                     ktot,
-                                                     jtot,
-                                                     itot,
-                                                     arr_kext,
-                                                     arr_Batm,
-                                                     CASE,
-                                                     INTERCELL_TECHNIQUE,
-                                                     INTRACELL_TECHNIQUE,
-                                                     Natm,
-                                                     Nsfc);
-    }
+        std::cout << "Start of MC" << std::endl;
 
+        heating_rates_MC = run_MC(arr_z,
+                                arr_zh,
+                                arr_dz,
+                                arr_kext,
+                                arr_Batm,
+                                Bsfc,
+                                dx,
+                                dy,
+                                ktot,
+                                jtot,
+                                itot,
+                                CASE,
+                                INTERCELL_TECHNIQUE,
+                                INTRACELL_TECHNIQUE,
+                                Natm,
+                                Nsfc);
+    }
 
     if (ENABLE_PP)
     {
@@ -95,6 +96,20 @@ int main()
     }
 
     
+    // Plotting results
+    Gnuplot gp;
+
+    std::vector<std::pair<double,double>> hr_3D;
+    for (int i = 0; i < itot; i++)
+    {
+        hr_3D.emplace_back(heating_rates_MC[i], arr_z[i]);
+    }
+
+    
+    gp << "set xrange [-4:2]\n"
+       << "set yrange [0:10000]\n"
+       << "plot '-' with lines title 'MC'\n";
+    gp.send1d(hr_3D);
 
     return 0;
 }
