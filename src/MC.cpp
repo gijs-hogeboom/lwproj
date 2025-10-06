@@ -7,7 +7,7 @@
 #include <limits>
 #include <string>
 
-#include "constants.h"
+#include "util.h"
 
 
 void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
@@ -295,7 +295,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 {
 
     ///////////////////// INITIALIZING DOMAIN /////////////////////// 
-    std::cout << "MC: Initializing domain" << std::endl;
+    std::cout << "  MC: Initializing domain" << std::endl;
 
     // Randomization setup
     std::random_device rd;
@@ -376,7 +376,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     }
 
     /////////////////////////// SAMPLING /////////////////////////// 
-    std::cout << "MC: Sampling" << std::endl;
+    std::cout << "  MC: Sampling" << std::endl;
 
     
     // Initializing photon arrays
@@ -524,7 +524,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
 
     /////////////////////// PHOTON RELEASE /////////////////////// 
-    std::cout << "MC: Photon release - atm" << std::endl;
+    std::cout << "  MC: Photon release - atm" << std::endl;
 
 
     // Photons from the atmosphere
@@ -557,7 +557,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                        0);
     
     
-    std::cout << "MC: Photon release - sfc" << std::endl;
+    std::cout << "  MC: Photon release - sfc" << std::endl;
 
     // Photons from the surface
     photon_propagation(arr_photons_sfc_pos_idx,
@@ -591,7 +591,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
     ///////////////// CALCULATING HEATING RATES /////////////////
 
-    std::cout << "MC: Calculating heating rates" << std::endl;
+    std::cout << "  MC: Calculating heating rates" << std::endl;
 
     std::vector<float> field_atm_heating_rates(n_volumes);
     std::vector<float> field_sfc_heating_rates(n_tiles);

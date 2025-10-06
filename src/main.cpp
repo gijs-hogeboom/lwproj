@@ -13,9 +13,9 @@ int main()
     std::cout << "Start of program, reading input data" << std::endl;
 
     // Control variables
-    std::string CASE = "gpt3";                  // {gpt0, gpt1, gpt3, gpt21}
+    std::string CASE = "gpt21";                  // {gpt0, gpt1, gpt3, gpt21}
     bool ENABLE_MC = true;                      // Enables Monte Carlo algorithm
-    bool ENABLE_PP = false;                     // Enables plane-parallel algorithm
+    bool ENABLE_PP = true;                     // Enables plane-parallel algorithm
     float dx = 1e8;                             // [m]
     float dy = 1e8;                             // [m]
 
@@ -60,6 +60,7 @@ int main()
     
 
     std::vector<float> heating_rates_MC(itot);
+    std::vector<float> heating_rates_PP(itot);
 
     if (ENABLE_MC)
     {
@@ -85,31 +86,37 @@ int main()
 
     if (ENABLE_PP)
     {
-        std::vector<float> heating_rates_PP = run_plane_parallel(arr_z,
-                                                                arr_zh,
-                                                                arr_dz,
-                                                                arr_kext,
-                                                                arr_Batm,
-                                                                arr_Batmh,
-                                                                CASE,
-                                                                N_mu);
+
+        std::cout << "Start of PP" << std::endl;
+
+        heating_rates_PP = run_plane_parallel(arr_z,
+                                            arr_zh,
+                                            arr_dz,
+                                            arr_kext,
+                                            arr_Batm,
+                                            arr_Batmh,
+                                            CASE,
+                                            Bsfc,
+                                            N_mu);
     }
 
     
     // Plotting results
     Gnuplot gp;
 
-    std::vector<std::pair<double,double>> hr_3D;
+    std::vector<std::pair<double,double>> hr_1D, hr_3D;
     for (int i = 0; i < itot; i++)
     {
+        hr_1D.emplace_back(heating_rates_PP[i], arr_z[i]);
         hr_3D.emplace_back(heating_rates_MC[i], arr_z[i]);
     }
 
-    
-    gp << "set xrange [-4:2]\n"
-       << "set yrange [0:10000]\n"
-       << "plot '-' with lines title 'MC'\n";
-    gp.send1d(hr_3D);
 
+    
+    gp << "set yrange [0 : 5000]\n"
+       << "plot '-' with lines title 'PP', '-' with lines title 'MC'\n";
+    gp.send1d(hr_1D);
+    gp.send1d(hr_3D);
+    std::cout << "Done" << std::endl;
     return 0;
 }
