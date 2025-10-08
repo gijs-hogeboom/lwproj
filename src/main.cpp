@@ -16,8 +16,8 @@ int main()
     std::string CASE = "gpt21";                   // {gpt0, gpt1, gpt3, gpt21}
     bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
-    float dx = 1e8;                               // [m]
-    float dy = 1e8;                               // [m]
+    double dx = 1e8;                               // [m]
+    double dy = 1e8;                               // [m]
 
     int Nphotpow = 20;                            // Total 2^pow number of photons
     std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, (power-gradient)}
@@ -38,16 +38,18 @@ int main()
     nlohmann::json j;
     file_MVcases >> j;
 
-    std::vector<float> arr_z = j["z_" + CASE].get<std::vector<float>>();
-    std::vector<float> arr_zh = j["zh_" + CASE].get<std::vector<float>>();
-    std::vector<float> arr_dz = j["dz_" + CASE].get<std::vector<float>>();
+    std::vector<double> arr_z = j["z_" + CASE].get<std::vector<double>>();
+    std::vector<double> arr_zh = j["zh_" + CASE].get<std::vector<double>>();
+    std::vector<double> arr_dz = j["dz_" + CASE].get<std::vector<double>>();
 
-    std::vector<float> arr_kext = j["kext_" + CASE].get<std::vector<float>>();
-    std::vector<float> arr_Batm = j["Batm_" + CASE].get<std::vector<float>>();
-    std::vector<float> arr_Batmh = j["Batmh_" + CASE].get<std::vector<float>>();
+    std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
+    std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
+    std::vector<double> arr_Batmh = j["Batmh_" + CASE].get<std::vector<double>>();
 
-    float Bsfc = j["Bsfc_" + CASE].get<float>();
+    double Bsfc = j["Bsfc_" + CASE].get<double>();
 
+
+    std::cout << typeid(arr_z[0]).name() << std::endl;
 
     // General initializations
     int Nphot = pow(2, Nphotpow);
@@ -59,8 +61,8 @@ int main()
     int ktot = 1;
     
 
-    std::vector<float> heating_rates_MC(itot);
-    std::vector<float> heating_rates_PP(itot);
+    std::vector<double> heating_rates_MC(itot);
+    std::vector<double> heating_rates_PP(itot);
 
     if (ENABLE_MC)
     {

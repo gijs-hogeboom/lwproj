@@ -12,12 +12,12 @@ using namespace boost::math::quadrature;
 
 
 class LinearInterpTau {
-    std::vector<float> arr_x, arr_y;
+    std::vector<double> arr_x, arr_y;
 public:
-    LinearInterpTau(const std::vector<float>& arr_x_in, const std::vector<float>& arr_y_in)
+    LinearInterpTau(const std::vector<double>& arr_x_in, const std::vector<double>& arr_y_in)
         : arr_x(arr_x_in), arr_y(arr_y_in) {};
 
-    float operator()(float x) const {
+    double operator()(double x) const {
 
         if (x >= arr_x.front()) return arr_y.front();
         if (x <= arr_x.back())  return arr_y.back();
@@ -27,38 +27,38 @@ public:
         size_t i = 0;
         while (i + 1 < arr_x.size() && arr_x[i+1] >= x) ++i;
 
-        float x0 = arr_x[i];
-        float x1 = arr_x[i+1];
-        float y0 = arr_y[i];
-        float y1 = arr_y[i+1];
+        double x0 = arr_x[i];
+        double x1 = arr_x[i+1];
+        double y0 = arr_y[i];
+        double y1 = arr_y[i+1];
 
         return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
     }
 };
 
 
-std::vector<float> linspace(float start, float end, int N)
+std::vector<double> linspace(double start, double end, int N)
 {
-    std::vector<float> arr_result(N);
+    std::vector<double> arr_result(N);
 
-    float step_size = (end - start)/(N - 1);
+    double step_size = (end - start)/(N - 1);
 
     for (size_t i = 0; i < N; i++)
     {
-        arr_result[i] = start + (static_cast<float>(i) * step_size);
+        arr_result[i] = start + (static_cast<double>(i) * step_size);
     }
 
     return arr_result;
 }
 
-float kahan_sum(const std::vector<float>& values) 
+double kahan_sum(const std::vector<double>& values) 
 {
     // from Mr. Chat
-    float sum = 0.0f;
-    float c = 0.0f;  // Compensation
-    for (float x : values) {
-        float y = x - c;
-        float t = sum + y;
+    double sum = 0.0f;
+    double c = 0.0f;  // Compensation
+    for (double x : values) {
+        double y = x - c;
+        double t = sum + y;
         c = (t - sum) - y;
         sum = t;
     }
@@ -66,17 +66,17 @@ float kahan_sum(const std::vector<float>& values)
 }
 
 
-std::vector<float> cumulative_trapezoid(const std::vector<float>& arr_x,
-                                        const std::vector<float>& arr_y) 
+std::vector<double> cumulative_trapezoid(const std::vector<double>& arr_x,
+                                        const std::vector<double>& arr_y) 
 {
     size_t n = arr_x.size();
 
-    std::vector<float> arr_cY(n - 1, 0.0f);
+    std::vector<double> arr_cY(n - 1, 0.0f);
 
     for (size_t i = 0; i < (n - 1); i++) 
     {
-        float dx = arr_x[i+1] - arr_x[i];
-        float Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
+        double dx = arr_x[i+1] - arr_x[i];
+        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
         if (i == 0)
         {
             arr_cY[i] = Y;
@@ -90,76 +90,76 @@ std::vector<float> cumulative_trapezoid(const std::vector<float>& arr_x,
     return arr_cY;
 }
 
-float trapezoid(const std::vector<float>& arr_x,
-                const std::vector<float>& arr_y)
+double trapezoid(const std::vector<double>& arr_x,
+                const std::vector<double>& arr_y)
 {
     size_t n = arr_x.size();
-    std::vector<float> values(n);
+    std::vector<double> values(n);
 
     for (size_t i = 0; i < n; i++)
     {
-        float dx = arr_x[i+1] - arr_x[i];
-        float Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
+        double dx = arr_x[i+1] - arr_x[i];
+        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
         values[i] = Y;
     }
 
-    float result = kahan_sum(values);
+    double result = kahan_sum(values);
     return result;
 }
 
-float trapezoid(const std::vector<float>& arr_y, float dx)
+double trapezoid(const std::vector<double>& arr_y, double dx)
 {
     size_t n = arr_y.size();
-    std::vector<float> values(n);
+    std::vector<double> values(n);
 
     for (size_t i = 0; i < n; i++)
     {
-        float Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
+        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
         values[i] = Y;
     }
 
-    float result = kahan_sum(values);
+    double result = kahan_sum(values);
     return result;
 }
 
 
-float I_upwards_emission(float tau_prime, float B_at_tau_prime, float tau, float mu)
+double I_upwards_emission(double tau_prime, double B_at_tau_prime, double tau, double mu)
 {
     return B_at_tau_prime * std::exp( -(tau_prime - tau)/mu );
 }
 
-float I_upwards_exctinction(float tau, float mu, float I_at_sfc, float tau_at_sfc)
+double I_upwards_exctinction(double tau, double mu, double I_at_sfc, double tau_at_sfc)
 {
     return I_at_sfc * std::exp( -(tau_at_sfc - tau)/mu );
 }
 
 
-float I_downwards_emission(float tau_prime, float B_at_tau_prime, float tau, float mu)
+double I_downwards_emission(double tau_prime, double B_at_tau_prime, double tau, double mu)
 {
     return B_at_tau_prime * std::exp( -(tau - tau_prime)/mu );
 }
 
-float I_downwards_exctinction(float tau, float mu, float I_at_TOA, float tau_at_TOA)
+double I_downwards_exctinction(double tau, double mu, double I_at_TOA, double tau_at_TOA)
 {
     return I_at_TOA * std::exp( -(tau - tau_at_TOA)/mu );
 }
 
 
-float I_complete(float term_extinction, const std::vector<float>& vec_emission_values, float dtau, float mu)
+double I_complete(double term_extinction, const std::vector<double>& vec_emission_values, double dtau, double mu)
 {
-    float term_emission = trapezoid(vec_emission_values, dtau) / mu;
+    double term_emission = trapezoid(vec_emission_values, dtau) / mu;
     return term_extinction + term_emission;
 }
 
 
-std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
-                                      const std::vector<float>& arr_zh,
-                                      const std::vector<float>& arr_dz,
-                                      const std::vector<float>& arr_kext,
-                                      const std::vector<float>& arr_Batm,
-                                      const std::vector<float>& arr_Batmh,
+std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
+                                      const std::vector<double>& arr_zh,
+                                      const std::vector<double>& arr_dz,
+                                      const std::vector<double>& arr_kext,
+                                      const std::vector<double>& arr_Batm,
+                                      const std::vector<double>& arr_Batmh,
                                       const std::string& CASE,
-                                      float Bsfc,
+                                      double Bsfc,
                                       int N_mu)
 {
 
@@ -171,7 +171,7 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
     int itotg = arr_z.size() + 2; // for ghost-cell including arrays
 
     // Initializing arr_zg (arr_z with 2 ghost cells)
-    std::vector<float> arr_zg(itotg);
+    std::vector<double> arr_zg(itotg);
 
 
     arr_zg[0] = arr_z[0] - arr_dz[0];
@@ -179,7 +179,7 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
     for (int i = 1; i < (itotg-1); i++) { arr_zg[i] = arr_z[i-1]; }
 
     // Initializing arr_kextg (arr_kext with 2 ghost cells)
-    std::vector<float> arr_kextg(itotg);
+    std::vector<double> arr_kextg(itotg);
     arr_kextg[0] = arr_kext[0] - (arr_kext[1] - arr_kext[0])/(arr_z[1] - arr_z[0]);
     arr_kextg[itotg-1] = arr_kext[itot-1] + (arr_kext[itot-1] - arr_kext[itot-2])/(arr_z[itot-1] - arr_z[itot-2]);
     for (int i = 1; i < (itotg-1); i++) { arr_kextg[i] = arr_kext[i-1]; }
@@ -188,7 +188,7 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
     if (arr_kextg[itotg-1] <= 0) { arr_kextg[itotg-1] = 0.0f; }
 
     // Initializing arr_Batmg (arr_Batm with 2 ghost cells)
-    std::vector<float> arr_Batmg(itotg);
+    std::vector<double> arr_Batmg(itotg);
     arr_Batmg[0] = arr_Batm[0] - (arr_Batm[1] - arr_Batm[0])/(arr_z[1] - arr_z[0]);
     arr_Batmg[itotg-1] = arr_Batm[itot-1] + (arr_Batm[itot-1] - arr_Batm[itot-2])/(arr_z[itot-1] - arr_z[itot-2]);
     for (int i = 1; i < (itotg-1); i++) { arr_Batmg[i] = arr_Batm[i-1]; }
@@ -197,44 +197,44 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
     if (arr_Batmg[itotg-1] <= 0) { arr_Batmg[itotg-1] = 0.0f; }
 
     // Generating tauh (cumulative trapezoid from TOA to bottom)
-    std::vector<float> arr_kextg_reversed(arr_kextg.rbegin(), arr_kextg.rend());
-    std::vector<float> arr_zg_reversed(arr_zg.rbegin(), arr_zg.rend());
+    std::vector<double> arr_kextg_reversed(arr_kextg.rbegin(), arr_kextg.rend());
+    std::vector<double> arr_zg_reversed(arr_zg.rbegin(), arr_zg.rend());
 
-    std::vector<float> arr_tauh = cumulative_trapezoid(arr_zg_reversed,arr_kextg_reversed);
+    std::vector<double> arr_tauh = cumulative_trapezoid(arr_zg_reversed,arr_kextg_reversed);
     std::reverse(arr_tauh.begin(), arr_tauh.end());
     for (auto& v: arr_tauh) { v = -v; }
 
     // Creating B(tau) function
     LinearInterpTau B_tauh(arr_tauh, arr_Batmh);
-    auto f_B_tauh = [&](float tau) { return B_tauh(tau); };
+    auto f_B_tauh = [&](double tau) { return B_tauh(tau); };
 
-    float tau_at_sfc = arr_tauh[0];
-    float tau_at_TOA = arr_tauh[arr_tauh.size()-1];
+    double tau_at_sfc = arr_tauh[0];
+    double tau_at_TOA = arr_tauh[arr_tauh.size()-1];
 
-    float I_at_sfc = Bsfc;
-    float I_at_TOA = 0.;
+    double I_at_sfc = Bsfc;
+    double I_at_TOA = 0.;
     
 
     // Angles
-    std::vector<float> arr_mu = linspace(0.01f, 1.0f, N_mu);
+    std::vector<double> arr_mu = linspace(0.01f, 1.0f, N_mu);
     int jtot = N_mu;
-    float ktot = 100.;
+    double ktot = 100.;
 
 
     // Calculating emission terms
     std::cout << "  PP: Calculating emission terms" << std::endl;
 
-    std::vector<float> M_I_emission_uph(itoth*jtot*ktot);
-    std::vector<float> M_I_emission_downh(itoth*jtot*ktot);
+    std::vector<double> M_I_emission_uph(itoth*jtot*ktot);
+    std::vector<double> M_I_emission_downh(itoth*jtot*ktot);
 
-    std::vector<float> arr_dtau_uph(itoth);
-    std::vector<float> arr_dtau_downh(itoth);
+    std::vector<double> arr_dtau_uph(itoth);
+    std::vector<double> arr_dtau_downh(itoth);
     
 
     for (size_t i = 0; i < itoth; i++)
     {
         // Loading tau
-        float tau = arr_tauh[i];
+        double tau = arr_tauh[i];
 
         // Storing dtau at this level
         arr_dtau_uph[i]   = (tau_at_sfc - tau)/(ktot-1);
@@ -243,17 +243,17 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
         for (size_t j = 0; j < jtot; j++)
         {
             // Loading mu
-            float mu = arr_mu[j];
-            for (float k = 0.; k < ktot; k++)
+            double mu = arr_mu[j];
+            for (double k = 0.; k < ktot; k++)
             {
                 int idx = i*jtot*ktot + j*ktot + k;
 
-                float tau_prime_up        = (k/(ktot-1)*tau        + (1 - k/(ktot-1))*tau_at_sfc);
-                float B_at_tau_prime_up   = f_B_tauh(tau_prime_up);
+                double tau_prime_up        = (k/(ktot-1)*tau        + (1 - k/(ktot-1))*tau_at_sfc);
+                double B_at_tau_prime_up   = f_B_tauh(tau_prime_up);
                 M_I_emission_uph[idx]     = I_upwards_emission(tau_prime_up, B_at_tau_prime_up, tau, mu);
                 
-                float tau_prime_down      = (k/(ktot-1)*tau_at_TOA + (1 - k/(ktot-1))*tau);
-                float B_at_tau_prime_down = f_B_tauh(tau_prime_down);
+                double tau_prime_down      = (k/(ktot-1)*tau_at_TOA + (1 - k/(ktot-1))*tau);
+                double B_at_tau_prime_down = f_B_tauh(tau_prime_down);
                 M_I_emission_downh[idx]   = I_downwards_emission(tau_prime_down, B_at_tau_prime_down, tau, mu);
             }
         }
@@ -262,20 +262,20 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
     // Calculating I(tau, mu)
     std::cout << "  PP: Calculating I(tau, mu)" << std::endl;
 
-    std::vector<float> M_I_uph(itoth*jtot);
-    std::vector<float> M_I_downh(itoth*jtot);
+    std::vector<double> M_I_uph(itoth*jtot);
+    std::vector<double> M_I_downh(itoth*jtot);
 
     for (size_t i = 0; i < itoth; i++)
     {
-        float tau = arr_tauh[i];
-        float dtau_up = arr_dtau_uph[i];
-        float dtau_down = arr_dtau_downh[i];
+        double tau = arr_tauh[i];
+        double dtau_up = arr_dtau_uph[i];
+        double dtau_down = arr_dtau_downh[i];
         for (size_t j = 0; j < jtot; j++)
         {
-            float mu = arr_mu[j];
+            double mu = arr_mu[j];
             int idx = i*jtot + j;
-            std::vector<float> I_uph_kaxis(ktot);
-            std::vector<float> I_downh_kaxis(ktot);
+            std::vector<double> I_uph_kaxis(ktot);
+            std::vector<double> I_downh_kaxis(ktot);
             for (size_t k = 0; k < ktot; k++)
             {
                 int idx_k = i*jtot*ktot + j*ktot + k;
@@ -298,17 +298,17 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
     // Calculating F(z)
     std::cout << "  PP: Calculating F(z)" << std::endl;
 
-    std::vector<float> arr_F_uph(itoth);
-    std::vector<float> arr_F_downh(itoth);
+    std::vector<double> arr_F_uph(itoth);
+    std::vector<double> arr_F_downh(itoth);
 
     for (size_t i = 0; i < itoth; i++)
     {
         // Calculating and storing I(tau, mu) * mu for each angle per level
-        std::vector<float> arr_Imu_uph(jtot);
-        std::vector<float> arr_Imu_downh(jtot);
+        std::vector<double> arr_Imu_uph(jtot);
+        std::vector<double> arr_Imu_downh(jtot);
         for (size_t j = 0; j < jtot; j++)
         {
-            float mu = arr_mu[j];
+            double mu = arr_mu[j];
 
             int idx = i*jtot + j;
 
@@ -322,7 +322,7 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
     // Calculating heating rates
     std::cout << "  PP: Calculating heating rates" << std::endl;
 
-    std::vector<float> arr_heating_rates(itot);
+    std::vector<double> arr_heating_rates(itot);
     for (size_t i = 0; i < itot; i++)
     {
         arr_heating_rates[i] = 1 / (cf::RHO * cf::CP * arr_dz[i]) * (arr_F_uph[i] + arr_F_downh[i+1] - arr_F_uph[i+1] - arr_F_downh[i]) * 86400;
