@@ -6,8 +6,39 @@
 #include <fstream>
 #include <limits>
 #include <string>
+#include <numeric>
+#include <algorithm>
 
 #include "util.h"
+
+
+// Function to perform weighted or unweighted random choice
+template <typename T>
+std::vector<T> random_choice(const std::vector<T>& a, size_t size, const std::vector<float>& weights = {}
+) {
+    if (a.empty()) throw std::invalid_argument("Input array is empty.");
+    if (!weights.empty() && weights.size() != a.size())
+        throw std::invalid_argument("Weights must have the same length as input array.");
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::vector<T> result;
+    result.reserve(size);
+
+    // With replacement: use discrete_distribution if weights provided
+    if (!weights.empty()) {
+        std::discrete_distribution<> dist(weights.begin(), weights.end());
+        for (size_t i = 0; i < size; ++i)
+            result.push_back(a[dist(gen)]);
+    } else {
+        std::uniform_int_distribution<> dist(0, static_cast<int>(a.size()) - 1);
+        for (size_t i = 0; i < size; ++i)
+            result.push_back(a[dist(gen)]);
+    }
+
+    return result;
+}
+
 
 
 void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
@@ -411,7 +442,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
             std::uniform_int_distribution<> random_sfc_idx(0, (n_tiles - 1));
 
             // Atmosphere
-            for (int idx_photon = 0; idx_photon < Natm; idx_photon++)
+            for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
             {
                 // Position
                 int idx_atm = random_atm_idx(gen);
@@ -441,7 +472,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
             }
 
             // Surface
-            for (int idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+            for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
             {
                 // Position
                 int idx_sfc = random_sfc_idx(gen);
@@ -463,17 +494,16 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
                 // Countint photons per gridcell
                 field_sfc_photons_per_gridcell[idx_sfc] += 1;
-
             }
 
 
             // Determining carrying power of each photon
-            for (int idx_photon = 0; idx_photon < Natm; idx_photon++)
+            for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
             {
                 int idx_atm = arr_photons_atm_pos_idx[idx_photon];
                 arr_photons_atm_phi[idx_photon] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
             }
-            for (int idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+            for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
             {
                 int idx_sfc = arr_photons_sfc_pos_idx[idx_photon];
                 arr_photons_sfc_phi[idx_photon] = field_sfc_phi[idx_sfc] / field_sfc_photons_per_gridcell[idx_sfc];
@@ -494,7 +524,95 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     {
         if (INTRACELL_TECHNIQUE == "naive")
         {
-            ;
+            // Atmosphere
+            // Generating weighted choice
+            std::vector<float> field_atm_weights(n_volumes);
+            std::vector<int> field_atm_idx(n_volumes);
+            float tot_phi_atm = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0f);
+            for (size_t i = 0; i < n_volumes; i++)
+            {
+                field_atm_weights[i] = field_atm_phi[i] / tot_phi_atm;
+                field_atm_idx[i] = i;
+            }
+
+            arr_photons_atm_pos_idx = random_choice(field_atm_idx, Natm, field_atm_weights);
+
+            for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
+            {
+                // Position
+                int idx_atm = arr_photons_atm_pos_idx[idx_photon];
+                                
+                int jktot = ktot * jtot;
+                int idx_atm_z  = idx_atm / jktot;
+                int idx_atm_2D = idx_atm % jktot;
+                int idx_atm_y  = idx_atm_2D / ktot;
+                int idx_atm_x  = idx_atm_2D % ktot;
+
+                float random_shift_x = random_float(gen) * dx;
+                float random_shift_y = random_float(gen) * dy;
+                float random_shift_z = random_float(gen) * arr_dz[idx_atm_z];
+
+                arr_photons_atm_pos_x[idx_photon] = idx_atm_x * dx + random_shift_x;
+                arr_photons_atm_pos_y[idx_photon] = idx_atm_y * dy + random_shift_y;
+                arr_photons_atm_pos_z[idx_photon] = arr_zh[idx_atm_z] + random_shift_z;
+
+                // Angles and optical thickness
+                arr_photons_atm_mu[idx_photon]  = 2*random_float(gen) - 1;
+                arr_photons_atm_az[idx_photon]  = 2*cf::PI*random_float(gen);
+                arr_photons_atm_tau[idx_photon] = -logf(random_float(gen));
+
+                // Countint photons per gridcell
+                field_atm_photons_per_gridcell[idx_atm] += 1;
+            }
+
+            std::vector<float> field_sfc_weights(n_tiles);
+            std::vector<int> field_sfc_idx(n_tiles);
+            float tot_phi_sfc = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0f);
+            for (size_t i = 0; i < n_tiles; i++)
+            {
+                field_sfc_weights[i] = field_sfc_phi[i] / tot_phi_sfc;
+                field_sfc_idx[i] = i;
+            }
+
+            arr_photons_sfc_pos_idx = random_choice(field_sfc_idx, Nsfc, field_sfc_weights);
+
+            // Surface
+            for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+            {
+                // Position
+                int idx_sfc = arr_photons_sfc_pos_idx[idx_photon];
+
+                int idx_sfc_y  = idx_sfc / ktot;
+                int idx_sfc_x  = idx_sfc % ktot;
+
+                float random_shift_x = random_float(gen) * dx;
+                float random_shift_y = random_float(gen) * dy;
+
+                arr_photons_sfc_pos_x[idx_photon] = idx_sfc_x * dx + random_shift_x;
+                arr_photons_sfc_pos_y[idx_photon] = idx_sfc_y * dy + random_shift_y;
+
+                // Angles and optical thickness
+                arr_photons_sfc_mu[idx_photon]  = std::sqrt(random_float(gen));
+                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*random_float(gen);
+                arr_photons_sfc_tau[idx_photon] = -logf(random_float(gen));
+
+                // Countint photons per gridcell
+                field_sfc_photons_per_gridcell[idx_sfc] += 1;
+            }
+
+            // Determining carrying power of each photon
+            for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
+            {
+                int idx_atm = arr_photons_atm_pos_idx[idx_photon];
+                arr_photons_atm_phi[idx_photon] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+            }
+            for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+            {
+                int idx_sfc = arr_photons_sfc_pos_idx[idx_photon];
+                arr_photons_sfc_phi[idx_photon] = field_sfc_phi[idx_sfc] / field_sfc_photons_per_gridcell[idx_sfc];
+            }
+            
+
         } else
         if (INTRACELL_TECHNIQUE == "margin")
         {
@@ -555,7 +673,6 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                        dy,
                        Natm,
                        0);
-    
     
     std::cout << "  MC: Photon release - sfc" << std::endl;
 

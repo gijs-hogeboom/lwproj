@@ -13,17 +13,17 @@ int main()
     std::cout << "Start of program, reading input data" << std::endl;
 
     // Control variables
-    std::string CASE = "gpt21";                  // {gpt0, gpt1, gpt3, gpt21}
-    bool ENABLE_MC = true;                      // Enables Monte Carlo algorithm
-    bool ENABLE_PP = true;                     // Enables plane-parallel algorithm
-    float dx = 1e8;                             // [m]
-    float dy = 1e8;                             // [m]
+    std::string CASE = "gpt21";                   // {gpt0, gpt1, gpt3, gpt21}
+    bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
+    bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
+    float dx = 1e8;                               // [m]
+    float dy = 1e8;                               // [m]
 
-    int Nphotpow = 20;                          // Total 2^pow number of photons
-    std::string INTERCELL_TECHNIQUE = "uniform";  // {uniform, power, (power-gradient)}
-    std::string INTRACELL_TECHNIQUE = "naive";  // {naive, (margin), (edge)}
+    int Nphotpow = 20;                            // Total 2^pow number of photons
+    std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, (power-gradient)}
+    std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
 
-    int N_mu = 20;                              // Number of angles to calculate at each height in PP-algorithm
+    int N_mu = 20;                                // Number of angles to calculate at each height in PP-algorithm
 
 
 
