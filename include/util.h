@@ -29,7 +29,7 @@ void LOGvec(const std::vector<T>& arr, const std::string& name = "Array", bool e
 
 namespace cf
 {
-    const float PI = 3.1415927;
-    const float RHO = 1.225;
-    const float CP = 1004;
+    const double PI = 3.1415927;
+    const double RHO = 1.225;
+    const double CP = 1004;
 }

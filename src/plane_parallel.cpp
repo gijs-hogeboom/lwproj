@@ -2,6 +2,7 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include <numeric>
 #include <algorithm>
 #include <boost/math/quadrature/gauss.hpp>
 
@@ -54,8 +55,8 @@ std::vector<double> linspace(double start, double end, int N)
 double kahan_sum(const std::vector<double>& values) 
 {
     // from Mr. Chat
-    double sum = 0.0f;
-    double c = 0.0f;  // Compensation
+    double sum = 0.0;
+    double c = 0.0;  // Compensation
     for (double x : values) {
         double y = x - c;
         double t = sum + y;
@@ -71,12 +72,12 @@ std::vector<double> cumulative_trapezoid(const std::vector<double>& arr_x,
 {
     size_t n = arr_x.size();
 
-    std::vector<double> arr_cY(n - 1, 0.0f);
+    std::vector<double> arr_cY(n - 1, 0.0);
 
     for (size_t i = 0; i < (n - 1); i++) 
     {
         double dx = arr_x[i+1] - arr_x[i];
-        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
+        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0;
         if (i == 0)
         {
             arr_cY[i] = Y;
@@ -94,31 +95,31 @@ double trapezoid(const std::vector<double>& arr_x,
                 const std::vector<double>& arr_y)
 {
     size_t n = arr_x.size();
-    std::vector<double> values(n);
+    std::vector<double> values((n - 1));
 
-    for (size_t i = 0; i < n; i++)
+    for (size_t i = 0; i < (n - 1); i++)
     {
         double dx = arr_x[i+1] - arr_x[i];
-        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
+        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0;
         values[i] = Y;
     }
 
-    double result = kahan_sum(values);
+    double result = std::accumulate(values.begin(), values.end(), 0.0);
     return result;
 }
 
 double trapezoid(const std::vector<double>& arr_y, double dx)
 {
     size_t n = arr_y.size();
-    std::vector<double> values(n);
+    std::vector<double> values((n - 1));
 
-    for (size_t i = 0; i < n; i++)
+    for (size_t i = 0; i < (n - 1); i++)
     {
-        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0f;
+        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0;
         values[i] = Y;
     }
 
-    double result = kahan_sum(values);
+    double result = std::accumulate(values.begin(), values.end(), 0.0);
     return result;
 }
 
@@ -184,8 +185,8 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     arr_kextg[itotg-1] = arr_kext[itot-1] + (arr_kext[itot-1] - arr_kext[itot-2])/(arr_z[itot-1] - arr_z[itot-2]);
     for (int i = 1; i < (itotg-1); i++) { arr_kextg[i] = arr_kext[i-1]; }
 
-    if (arr_kextg[0] <= 0) { arr_kextg[0] = 0.0f; }
-    if (arr_kextg[itotg-1] <= 0) { arr_kextg[itotg-1] = 0.0f; }
+    if (arr_kextg[0] <= 0) { arr_kextg[0] = 0.0; }
+    if (arr_kextg[itotg-1] <= 0) { arr_kextg[itotg-1] = 0.0; }
 
     // Initializing arr_Batmg (arr_Batm with 2 ghost cells)
     std::vector<double> arr_Batmg(itotg);
@@ -193,8 +194,8 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     arr_Batmg[itotg-1] = arr_Batm[itot-1] + (arr_Batm[itot-1] - arr_Batm[itot-2])/(arr_z[itot-1] - arr_z[itot-2]);
     for (int i = 1; i < (itotg-1); i++) { arr_Batmg[i] = arr_Batm[i-1]; }
 
-    if (arr_Batmg[0] <= 0) { arr_Batmg[0] = 0.0f; }
-    if (arr_Batmg[itotg-1] <= 0) { arr_Batmg[itotg-1] = 0.0f; }
+    if (arr_Batmg[0] <= 0) { arr_Batmg[0] = 0.0; }
+    if (arr_Batmg[itotg-1] <= 0) { arr_Batmg[itotg-1] = 0.0; }
 
     // Generating tauh (cumulative trapezoid from TOA to bottom)
     std::vector<double> arr_kextg_reversed(arr_kextg.rbegin(), arr_kextg.rend());
@@ -216,9 +217,9 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     
 
     // Angles
-    std::vector<double> arr_mu = linspace(0.01f, 1.0f, N_mu);
+    std::vector<double> arr_mu = linspace(0.01, 1.0, N_mu);
     int jtot = N_mu;
-    double ktot = 100.;
+    double ktot = 1000.;
 
 
     // Calculating emission terms
@@ -291,6 +292,7 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
                                         I_downh_kaxis, 
                                         dtau_down,
                                         mu);
+
         }
     }
 

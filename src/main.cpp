@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <nlohmann/json.hpp>
 #include "gnuplot-iostream.h"
 
@@ -19,11 +20,11 @@ int main()
     double dx = 1e8;                               // [m]
     double dy = 1e8;                               // [m]
 
-    int Nphotpow = 20;                            // Total 2^pow number of photons
+    int Nphot_pow = 25;                            // Total 2^pow number of photons
     std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, (power-gradient)}
     std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
 
-    int N_mu = 20;                                // Number of angles to calculate at each height in PP-algorithm
+    int N_mu = 30;                                // Number of angles to calculate at each height in PP-algorithm
 
 
 
@@ -49,16 +50,16 @@ int main()
     double Bsfc = j["Bsfc_" + CASE].get<double>();
 
 
-    std::cout << typeid(arr_z[0]).name() << std::endl;
-
     // General initializations
-    int Nphot = pow(2, Nphotpow);
-    int Natm = Nphot / 2;
-    int Nsfc = Nphot / 2;
+    int Nphot    = pow(2, Nphot_pow);
+    int Natm_pow = Nphot_pow - 1; // splitting total amount in half
+    int Nsfc_pow = Nphot_pow - 1;
+    int Natm     = pow(2, Natm_pow);
+    int Nsfc     = pow(2, Nsfc_pow);
 
-    int itot = arr_z.size();
-    int jtot = 1;
-    int ktot = 1;
+    int itot     = arr_z.size();
+    int jtot     = 1;
+    int ktot     = 1;
     
 
     std::vector<double> heating_rates_MC(itot);
@@ -80,10 +81,24 @@ int main()
                                 jtot,
                                 itot,
                                 CASE,
-                                INTERCELL_TECHNIQUE,
-                                INTRACELL_TECHNIQUE,
-                                Natm,
+                                INTERCELL_TECHNIQUE, 
+                                INTRACELL_TECHNIQUE, 
+                                Natm, 
                                 Nsfc);
+        
+        // Storing output
+        std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/lwproj/data_output/HR_MC_" + CASE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
+        if (!file_MCoutput.is_open())
+        {
+            std::cerr << "Error: cannot open MC output file!" << std::endl;
+            return 1;
+        }
+
+        file_MCoutput << "z,heating_rate\n"; // header
+        for (size_t i = 0; i < itot; i++)
+        {
+            file_MCoutput << arr_z[i] << ',' << heating_rates_MC[i] << std::endl;
+        }
     }
 
     if (ENABLE_PP)
@@ -100,17 +115,93 @@ int main()
                                             CASE,
                                             Bsfc,
                                             N_mu);
+        
+        // Storing output
+        
+        std::ofstream file_PPoutput("/home/gijs-hogeboom/dev/lwproj/data_output/HR_PP_" + CASE + ".csv");
+        if (!file_PPoutput.is_open())
+        {
+            std::cerr << "Error: cannot open PP output file!" << std::endl;
+            return 1;
+        }
+
+        file_PPoutput << "z,heating_rate\n"; // header
+        for (size_t i = 0; i < itot; i++)
+        {
+            file_PPoutput << arr_z[i] << ',' << heating_rates_PP[i] << std::endl;
+        }
     }
 
+
+
+
     
+    // Loading results
+    std::vector<double> heating_rates_PP_in(itot, 0.);
+    std::vector<double> heating_rates_MC_in(itot, 0.);
+    std::vector<double> arr_z_in(itot, 0.);
+
+    std::fstream file_MCinput("/home/gijs-hogeboom/dev/lwproj/data_output/HR_MC_" + CASE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
+    std::fstream file_PPinput("/home/gijs-hogeboom/dev/lwproj/data_output/HR_PP_" + CASE + ".csv");
+    
+    if (!file_MCinput.is_open())
+    {
+        std::cout << "File |HR_MC_" + CASE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv| does not exist!" << std::endl;
+    }
+    else
+    {
+        size_t i = 0;
+        std::string line;
+        std::getline(file_MCinput, line); // Skipping header
+        while (std::getline(file_MCinput, line))
+        {
+            std::stringstream ss(line);
+            std::string cell;
+
+            std::getline(ss, cell, ',');
+            arr_z_in[i] = std::stod(cell);
+
+            std::getline(ss, cell, ',');
+            heating_rates_MC_in[i] = std::stod(cell);
+            std::cout << heating_rates_MC_in[i] << std::endl;
+            i++;
+        }
+        file_MCinput.close();
+    }
+
+    if (!file_PPinput.is_open())
+    {
+        std::cout << "File |HR_PP_" + CASE + ".csv| does not exist!" << std::endl;
+    }
+    else
+    {
+        size_t i = 0;
+        std::string line;
+        std::getline(file_PPinput, line); // Skipping header
+        while (std::getline(file_PPinput, line))
+        {
+            std::stringstream ss(line);
+            std::string cell;
+
+            std::getline(ss, cell, ',');
+            arr_z_in[i] = std::stod(cell);
+
+            std::getline(ss, cell, ',');
+            heating_rates_PP_in[i] = std::stod(cell);
+
+            i++;
+        }
+        file_PPinput.close();
+    }
+
     // Plotting results
     Gnuplot gp;
 
     std::vector<std::pair<double,double>> hr_1D, hr_3D;
     for (int i = 0; i < itot; i++)
     {
-        hr_1D.emplace_back(heating_rates_PP[i], arr_z[i]);
-        hr_3D.emplace_back(heating_rates_MC[i], arr_z[i]);
+        hr_1D.emplace_back(heating_rates_PP_in[i], arr_z_in[i]);
+        hr_3D.emplace_back(heating_rates_MC_in[i], arr_z_in[i]);
     }
 
 
