@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <nlohmann/json.hpp>
+#include <chrono>
 #include "gnuplot-iostream.h"
 
 #include "MC.h"
@@ -10,21 +11,26 @@
 
 int main()
 {
+
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::milliseconds;
     
     std::cout << "Start of program, reading input data" << std::endl;
 
     // Control variables
     std::string CASE = "gpt21";                   // {gpt0, gpt1, gpt3, gpt21}
-    bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
+    bool ENABLE_MC = false;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
-    double dx = 1e8;                               // [m]
-    double dy = 1e8;                               // [m]
+    float dx = 1e8;                               // [m]
+    float dy = 1e8;                               // [m]
 
-    int Nphot_pow = 25;                            // Total 2^pow number of photons
+    int Nphot_pow = 22;                            // Total 2^pow number of photons
     std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, (power-gradient)}
     std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
 
-    int N_mu = 30;                                // Number of angles to calculate at each height in PP-algorithm
+    int N_mu = 100;                                // Number of angles to calculate at each height in PP-algorithm
 
 
 
@@ -39,15 +45,15 @@ int main()
     nlohmann::json j;
     file_MVcases >> j;
 
-    std::vector<double> arr_z = j["z_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_zh = j["zh_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_dz = j["dz_" + CASE].get<std::vector<double>>();
+    std::vector<float> arr_z = j["z_" + CASE].get<std::vector<float>>();
+    std::vector<float> arr_zh = j["zh_" + CASE].get<std::vector<float>>();
+    std::vector<float> arr_dz = j["dz_" + CASE].get<std::vector<float>>();
 
-    std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_Batmh = j["Batmh_" + CASE].get<std::vector<double>>();
+    std::vector<float> arr_kext = j["kext_" + CASE].get<std::vector<float>>();
+    std::vector<float> arr_Batm = j["Batm_" + CASE].get<std::vector<float>>();
+    std::vector<float> arr_Batmh = j["Batmh_" + CASE].get<std::vector<float>>();
 
-    double Bsfc = j["Bsfc_" + CASE].get<double>();
+    float Bsfc = j["Bsfc_" + CASE].get<float>();
 
 
     // General initializations
@@ -62,9 +68,10 @@ int main()
     int ktot     = 1;
     
 
-    std::vector<double> heating_rates_MC(itot);
-    std::vector<double> heating_rates_PP(itot);
+    std::vector<float> heating_rates_MC(itot);
+    std::vector<float> heating_rates_PP(itot);
 
+    auto MC_t1 = std::chrono::high_resolution_clock::now();
     if (ENABLE_MC)
     {
         std::cout << "Start of MC" << std::endl;
@@ -100,7 +107,9 @@ int main()
             file_MCoutput << arr_z[i] << ',' << heating_rates_MC[i] << std::endl;
         }
     }
+    auto MC_t2 = std::chrono::high_resolution_clock::now();
 
+    auto PP_t1 = std::chrono::high_resolution_clock::now();
     if (ENABLE_PP)
     {
 
@@ -131,15 +140,16 @@ int main()
             file_PPoutput << arr_z[i] << ',' << heating_rates_PP[i] << std::endl;
         }
     }
+    auto PP_t2 = std::chrono::high_resolution_clock::now();
 
 
-
-
+    duration<double, std::milli> MC_time = MC_t2 - MC_t1;
+    duration<double, std::milli> PP_time = PP_t2 - PP_t1;
     
     // Loading results
-    std::vector<double> heating_rates_PP_in(itot, 0.);
-    std::vector<double> heating_rates_MC_in(itot, 0.);
-    std::vector<double> arr_z_in(itot, 0.);
+    std::vector<float> heating_rates_PP_in(itot, 0.);
+    std::vector<float> heating_rates_MC_in(itot, 0.);
+    std::vector<float> arr_z_in(itot, 0.);
 
     std::fstream file_MCinput("/home/gijs-hogeboom/dev/lwproj/data_output/HR_MC_" + CASE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
     std::fstream file_PPinput("/home/gijs-hogeboom/dev/lwproj/data_output/HR_PP_" + CASE + ".csv");
@@ -163,7 +173,7 @@ int main()
 
             std::getline(ss, cell, ',');
             heating_rates_MC_in[i] = std::stod(cell);
-            std::cout << heating_rates_MC_in[i] << std::endl;
+            
             i++;
         }
         file_MCinput.close();
@@ -197,7 +207,7 @@ int main()
     // Plotting results
     Gnuplot gp;
 
-    std::vector<std::pair<double,double>> hr_1D, hr_3D;
+    std::vector<std::pair<float,float>> hr_1D, hr_3D;
     for (int i = 0; i < itot; i++)
     {
         hr_1D.emplace_back(heating_rates_PP_in[i], arr_z_in[i]);
@@ -210,6 +220,16 @@ int main()
        << "plot '-' with lines title 'PP', '-' with lines title 'MC'\n";
     gp.send1d(hr_1D);
     gp.send1d(hr_3D);
-    std::cout << "Done" << std::endl;
+
+    std::cout << "====================================" << std::endl;
+    std::cout << "                Done!" << std::endl;
+    std::cout << "Parameters:" << std::endl;
+    std::cout << "- Natm: " << Natm_pow << std::endl;
+    std::cout << "- Nsfc: " << Nsfc_pow << std::endl;
+    std::cout << "- N_Mu: " << N_mu << std::endl;
+    std::cout << "Timers:" << std::endl;
+    std::cout << "   | MC time: " << MC_time.count()/1000 << std::endl;
+    std::cout << "   | PP time: " << PP_time.count()/1000 << std::endl;
+    std::cout << "====================================" << std::endl;
     return 0;
 }

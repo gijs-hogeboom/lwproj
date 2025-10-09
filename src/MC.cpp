@@ -14,7 +14,7 @@
 
 // Function to perform weighted or unweighted random choice
 template <typename T>
-std::vector<T> random_choice(const std::vector<T>& a, size_t size, const std::vector<double>& weights = {}
+std::vector<T> random_choice(const std::vector<T>& a, size_t size, const std::vector<float>& weights = {}
 ) {
     if (a.empty()) throw std::invalid_argument("Input array is empty.");
     if (!weights.empty() && weights.size() != a.size())
@@ -40,63 +40,55 @@ std::vector<T> random_choice(const std::vector<T>& a, size_t size, const std::ve
 }
 
 
-
 void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
-                        const std::vector<double>& arr_photons_pos_x,
-                        const std::vector<double>& arr_photons_pos_y,
-                        const std::vector<double>& arr_photons_pos_z,
-                        const std::vector<double>& arr_photons_mu,
-                        const std::vector<double>& arr_photons_az,
-                        const std::vector<double>& arr_photons_tau,
-                        const std::vector<double>& arr_photons_phi,
-                        const std::vector<double>& field_kext,
-                        const std::vector<double>& arr_xh,
-                        const std::vector<double>& arr_yh,
-                        const std::vector<double>& arr_zh,
-                        const std::vector<double>& arr_x,
-                        const std::vector<double>& arr_y,
-                        const std::vector<double>& arr_z,
-                        std::vector<double>& field_atm_absorbed,
-                        std::vector<double>& field_sfc_absorbed,
-                        double x_max,
-                        double y_max,
-                        double z_max,
+                        const std::vector<float>& arr_photons_pos_x,
+                        const std::vector<float>& arr_photons_pos_y,
+                        const std::vector<float>& arr_photons_pos_z,
+                        const std::vector<float>& arr_photons_mu,
+                        const std::vector<float>& arr_photons_az,
+                        const std::vector<float>& arr_photons_tau,
+                        const std::vector<float>& arr_photons_phi,
+                        const std::vector<float>& field_kext,
+                        const std::vector<float>& arr_xh,
+                        const std::vector<float>& arr_yh,
+                        const std::vector<float>& arr_zh,
+                        const std::vector<float>& arr_x,
+                        const std::vector<float>& arr_y,
+                        const std::vector<float>& arr_z,
+                        std::vector<float>& field_atm_absorbed,
+                        std::vector<float>& field_sfc_absorbed,
+                        float& TOA_absorbed,
+                        float x_max,
+                        float y_max,
+                        float z_max,
                         int itot,
                         int jtot,
                         int ktot,
-                        double dx,
-                        double dy,
+                        float dx,
+                        float dy,
                         int N,
                         int domain_section)
 {
-    double eps = 1e-3;
-
-    constexpr bool debug = false;
-    std::ofstream fout; // debugging output
-    
-    if constexpr (debug) 
-    {
-        fout.open("debug" + std::to_string(domain_section) + ".dat");
-        fout << "state,section,photon,steps,x,y,z,dx,dy,dz,tau,kext" << std::endl;
-    }
+    const float eps = 1e-3;
+    const int jktot = jtot * ktot;
 
     for (int idx_photon = 0; idx_photon < N; idx_photon++)
     {
         
         // Loading initial photon variables
         int idx_flat = arr_photons_pos_idx[idx_photon];
-        double x      = arr_photons_pos_x[idx_photon];
-        double y      = arr_photons_pos_y[idx_photon];
-        double z      = arr_photons_pos_z[idx_photon];
-        double mu     = arr_photons_mu[idx_photon];
-        double az     = arr_photons_az[idx_photon];
-        double tau    = arr_photons_tau[idx_photon];
+        float x      = arr_photons_pos_x[idx_photon];
+        float y      = arr_photons_pos_y[idx_photon];
+        float z      = arr_photons_pos_z[idx_photon];
+        float mu     = arr_photons_mu[idx_photon];
+        float az     = arr_photons_az[idx_photon];
+        float tau    = arr_photons_tau[idx_photon];
 
         // Calculating cartesian direction vector
-        double s = sqrt(1 - mu*mu);
-        double dx = s*cos(az);
-        double dy = s*sin(az);
-        double dz = mu;
+        float s = sqrt(1 - mu*mu);
+        float dx = s*cos(az);
+        float dy = s*sin(az);
+        float dz = mu;
 
         // Finding photon position as idx of the field
         // TODO - does not work exactly on cell boundaries, since it does not take direction into account
@@ -127,17 +119,8 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
         }
 
 
-        int counter = 0;
-
-        // Writing header for debug output
-        if constexpr (debug)
-        {
-            fout << "START" << ',' << domain_section << ',' << idx_photon << ',' << counter << ',' << x << ',' << y << ',' << z << ',' << dx << ',' << dy << ',' << dz << ',' << tau << ',' << 9999. << std::endl;
-        }
-
-        
-
         // Starting propegation...
+        int counter = 0;
         while (tau > 1e-10)
         {
 
@@ -179,8 +162,7 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
             if (at_TOA && going_up)
             {
                 tau = 0.;
-                z = std::nextafter(z_max, std::numeric_limits<double>::infinity()); // transport just above TOA
-                // ptr_energy_lost_at_TOA[0] += arr_photons_phi[idx_photon];
+                TOA_absorbed += arr_photons_phi[idx_photon];
                 break;
             }
             bool at_surface        = (abs(z) < eps);
@@ -195,15 +177,15 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 
         
             // retrieving kext from flattened grid
-            int idx_flat = idx_z * jtot * ktot + idx_y * ktot + idx_x;
-            double current_kext = field_kext[idx_flat];
+            int idx_flat = idx_z * jktot + idx_y * ktot + idx_x;
+            float current_kext = field_kext[idx_flat];
 
 
 
             // Scanning collision with cell boundaries
-            double time_x, time_y, time_z;
-            double dn = 0.;
-            double f = 1.;
+            float time_x, time_y, time_z;
+            float dn = 0.;
+            float f = 1.;
 
             if (dx >= 0.) // x
             {
@@ -249,13 +231,13 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 
 
             // Actual direction vectors
-            double dist_x = f * dx;
-            double dist_y = f * dy;
-            double dist_z = f * dz;
+            float dist_x = f * dx;
+            float dist_y = f * dy;
+            float dist_z = f * dz;
             
-            double ds = sqrt(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
-            double max_s = tau/current_kext;
-            double tau_absorbed = current_kext*ds;
+            float ds = sqrt(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
+            float max_s = tau/current_kext;
+            float tau_absorbed = current_kext*ds;
 
             if (ds < max_s)
             {
@@ -268,7 +250,7 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
             else
             {
                 tau = 0.;
-                double fs = max_s / ds;
+                float fs = max_s / ds;
                 x += dist_x*fs;
                 y += dist_y*fs;
                 z += dist_z*fs;
@@ -276,45 +258,19 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 field_atm_absorbed[idx_flat] += arr_photons_phi[idx_photon];
             }
             counter++;
-
-
-
-
-            if constexpr (debug)
-            {
-                if (counter > 999980)
-                {
-                    fout << "..." << ',' << domain_section << ',' << idx_photon << ',' << counter << ',' << x << ',' << y << ',' << z << ',' << dx << ',' << dy << ',' << dz << ',' << tau << ',' << current_kext << std::endl;
-                }
-                if (counter > 1000000) 
-                { 
-                    std::cout << "Warning: counter > 1.000.000..." << std::endl;
-                    fout << "END" << ',' << domain_section << ',' << idx_photon << ',' << counter << ',' << x << ',' << y << ',' << z << ',' << dx << ',' << dy << ',' << dz << ',' << tau << ',' << current_kext << std::endl;
-                    exit(-1);
-                }
-            }            
         }
-
-        
-
-
-        if constexpr (debug)
-        {
-            fout << "END" << ',' << domain_section << ',' << idx_photon << ',' << counter << ',' << x << ',' << y << ',' << z << ',' << dx << ',' << dy << ',' << dz << ',' << tau << ',' << 9999. << std::endl;
-        }
-        
     }
 }
 
 
-std::vector<double> run_MC(const std::vector<double>& arr_z,
-                          const std::vector<double>& arr_zh,
-                          const std::vector<double>& arr_dz,
-                          const std::vector<double>& arr_kext,
-                          const std::vector<double>& arr_Batm,
-                          double Bsfc,
-                          double dx,
-                          double dy,
+std::vector<float> run_MC(const std::vector<float>& arr_z,
+                          const std::vector<float>& arr_zh,
+                          const std::vector<float>& arr_dz,
+                          const std::vector<float>& arr_kext,
+                          const std::vector<float>& arr_Batm,
+                          float Bsfc,
+                          float dx,
+                          float dy,
                           int ktot,
                           int jtot,
                           int itot,
@@ -331,20 +287,20 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     // Randomization setup
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<double> random_double(0.0f, 1.0f);
+    std::uniform_real_distribution<float> random_float(0.0f, 1.0f);
 
     // Initializing domain skeleton
     int n_volumes = itot * jtot * ktot;
     int n_tiles   = jtot * ktot;
 
-    double x_max = ktot * dx;
-    double y_max = jtot * dy;
-    double z_max = arr_zh[arr_zh.size() - 1];
+    float x_max = ktot * dx;
+    float y_max = jtot * dy;
+    float z_max = arr_zh[arr_zh.size() - 1];
 
-    std::vector<double> arr_xh(ktot + 1);
-    std::vector<double> arr_yh(jtot + 1);
-    std::vector<double> arr_x(ktot);
-    std::vector<double> arr_y(jtot);
+    std::vector<float> arr_xh(ktot + 1);
+    std::vector<float> arr_yh(jtot + 1);
+    std::vector<float> arr_x(ktot);
+    std::vector<float> arr_y(jtot);
 
 
     for (int j = 0; j < (jtot + 1); j++)
@@ -365,17 +321,17 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     }
 
     // Initializing optical property fields
-    std::vector<double> field_atm_kext(n_volumes);
-    std::vector<double> field_atm_B(n_volumes);
-    std::vector<double> field_atm_phi(n_volumes);
-    std::vector<double> field_sfc_B(n_tiles);
-    std::vector<double> field_sfc_phi(n_tiles);
-    std::vector<double> field_sfc_eps(n_tiles, 1.0f);
+    std::vector<float> field_atm_kext(n_volumes);
+    std::vector<float> field_atm_B(n_volumes);
+    std::vector<float> field_atm_phi(n_volumes);
+    std::vector<float> field_sfc_B(n_tiles);
+    std::vector<float> field_sfc_phi(n_tiles);
+    std::vector<float> field_sfc_eps(n_tiles, 1.0f);
 
-    std::vector<double> field_atm_absorbed(n_volumes);
-    std::vector<double> field_atm_emitted(n_volumes);
-    std::vector<double> field_sfc_absorbed(n_tiles);
-    std::vector<double> field_sfc_emitted(n_tiles);
+    std::vector<float> field_atm_absorbed(n_volumes);
+    std::vector<float> field_atm_emitted(n_volumes);
+    std::vector<float> field_sfc_absorbed(n_tiles);
+    std::vector<float> field_sfc_emitted(n_tiles);
 
     // Generating fields
     for (int i = 0; i < itot; i++)
@@ -385,8 +341,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             for (int k = 0; k < ktot; k++)
             {
                 int idx_atm = i * ktot * jtot + j * ktot + k;
-                double current_kext = arr_kext[i];
-                double current_Batm = arr_Batm[i];
+                float current_kext = arr_kext[i];
+                float current_Batm = arr_Batm[i];
 
                 field_atm_kext[idx_atm] = current_kext;
                 field_atm_B[idx_atm] = current_Batm;
@@ -412,24 +368,26 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     
     // Initializing photon arrays
     std::vector<int>   arr_photons_atm_pos_idx(Natm);
-    std::vector<double> arr_photons_atm_pos_x(Natm);
-    std::vector<double> arr_photons_atm_pos_y(Natm);
-    std::vector<double> arr_photons_atm_pos_z(Natm);
-    std::vector<double> arr_photons_atm_mu(Natm);
-    std::vector<double> arr_photons_atm_az(Natm);
-    std::vector<double> arr_photons_atm_tau(Natm);
-    std::vector<double> arr_photons_atm_phi(Natm);
+    std::vector<float> arr_photons_atm_pos_x(Natm);
+    std::vector<float> arr_photons_atm_pos_y(Natm);
+    std::vector<float> arr_photons_atm_pos_z(Natm);
+    std::vector<float> arr_photons_atm_mu(Natm);
+    std::vector<float> arr_photons_atm_az(Natm);
+    std::vector<float> arr_photons_atm_tau(Natm);
+    std::vector<float> arr_photons_atm_phi(Natm);
     std::vector<int>   field_atm_photons_per_gridcell(n_volumes, 0);
 
     std::vector<int>   arr_photons_sfc_pos_idx(Nsfc);
-    std::vector<double> arr_photons_sfc_pos_x(Nsfc);
-    std::vector<double> arr_photons_sfc_pos_y(Nsfc);
-    std::vector<double> arr_photons_sfc_pos_z(Nsfc, 0.0f);
-    std::vector<double> arr_photons_sfc_mu(Nsfc);
-    std::vector<double> arr_photons_sfc_az(Nsfc);
-    std::vector<double> arr_photons_sfc_tau(Nsfc);
-    std::vector<double> arr_photons_sfc_phi(Nsfc);
+    std::vector<float> arr_photons_sfc_pos_x(Nsfc);
+    std::vector<float> arr_photons_sfc_pos_y(Nsfc);
+    std::vector<float> arr_photons_sfc_pos_z(Nsfc, 0.0f);
+    std::vector<float> arr_photons_sfc_mu(Nsfc);
+    std::vector<float> arr_photons_sfc_az(Nsfc);
+    std::vector<float> arr_photons_sfc_tau(Nsfc);
+    std::vector<float> arr_photons_sfc_phi(Nsfc);
     std::vector<int>   field_sfc_photons_per_gridcell(n_tiles, 0);
+
+    float TOA_absorbed = 0.0f; // This variable keeps track of photons lost to TOA
     
 
     // Sampling photons
@@ -454,18 +412,18 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_atm_y  = idx_atm_2D / ktot;
                 int idx_atm_x  = idx_atm_2D % ktot;
 
-                double random_shift_x = random_double(gen) * dx;
-                double random_shift_y = random_double(gen) * dy;
-                double random_shift_z = random_double(gen) * arr_dz[idx_atm_z];
+                float random_shift_x = random_float(gen) * dx;
+                float random_shift_y = random_float(gen) * dy;
+                float random_shift_z = random_float(gen) * arr_dz[idx_atm_z];
 
                 arr_photons_atm_pos_x[idx_photon] = idx_atm_x * dx + random_shift_x;
                 arr_photons_atm_pos_y[idx_photon] = idx_atm_y * dy + random_shift_y;
                 arr_photons_atm_pos_z[idx_photon] = arr_zh[idx_atm_z] + random_shift_z;
 
                 // Angles and optical thickness
-                arr_photons_atm_mu[idx_photon]  = 2*random_double(gen) - 1;
-                arr_photons_atm_az[idx_photon]  = 2*cf::PI*random_double(gen);
-                arr_photons_atm_tau[idx_photon] = -logf(random_double(gen));
+                arr_photons_atm_mu[idx_photon]  = 2*random_float(gen) - 1;
+                arr_photons_atm_az[idx_photon]  = 2*cf::PI*random_float(gen);
+                arr_photons_atm_tau[idx_photon] = -logf(random_float(gen));
 
                 // Countint photons per gridcell
                 field_atm_photons_per_gridcell[idx_atm] += 1;
@@ -481,16 +439,16 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_sfc_y  = idx_sfc / ktot;
                 int idx_sfc_x  = idx_sfc % ktot;
 
-                double random_shift_x = random_double(gen) * dx;
-                double random_shift_y = random_double(gen) * dy;
+                float random_shift_x = random_float(gen) * dx;
+                float random_shift_y = random_float(gen) * dy;
 
                 arr_photons_sfc_pos_x[idx_photon] = idx_sfc_x * dx + random_shift_x;
                 arr_photons_sfc_pos_y[idx_photon] = idx_sfc_y * dy + random_shift_y;
 
                 // Angles and optical thickness
-                arr_photons_sfc_mu[idx_photon]  = std::sqrt(random_double(gen));
-                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*random_double(gen);
-                arr_photons_sfc_tau[idx_photon] = -logf(random_double(gen));
+                arr_photons_sfc_mu[idx_photon]  = std::sqrt(random_float(gen));
+                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*random_float(gen);
+                arr_photons_sfc_tau[idx_photon] = -logf(random_float(gen));
 
                 // Countint photons per gridcell
                 field_sfc_photons_per_gridcell[idx_sfc] += 1;
@@ -526,9 +484,9 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         {
             // Atmosphere
             // Generating weighted choice
-            std::vector<double> field_atm_weights(n_volumes);
+            std::vector<float> field_atm_weights(n_volumes);
             std::vector<int> field_atm_idx(n_volumes);
-            double tot_phi_atm = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0f);
+            float tot_phi_atm = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0f);
             for (size_t i = 0; i < n_volumes; i++)
             {
                 field_atm_weights[i] = field_atm_phi[i] / tot_phi_atm;
@@ -548,26 +506,26 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_atm_y  = idx_atm_2D / ktot;
                 int idx_atm_x  = idx_atm_2D % ktot;
 
-                double random_shift_x = random_double(gen) * dx;
-                double random_shift_y = random_double(gen) * dy;
-                double random_shift_z = random_double(gen) * arr_dz[idx_atm_z];
+                float random_shift_x = random_float(gen) * dx;
+                float random_shift_y = random_float(gen) * dy;
+                float random_shift_z = random_float(gen) * arr_dz[idx_atm_z];
 
                 arr_photons_atm_pos_x[idx_photon] = idx_atm_x * dx + random_shift_x;
                 arr_photons_atm_pos_y[idx_photon] = idx_atm_y * dy + random_shift_y;
                 arr_photons_atm_pos_z[idx_photon] = arr_zh[idx_atm_z] + random_shift_z;
 
                 // Angles and optical thickness
-                arr_photons_atm_mu[idx_photon]  = 2*random_double(gen) - 1;
-                arr_photons_atm_az[idx_photon]  = 2*cf::PI*random_double(gen);
-                arr_photons_atm_tau[idx_photon] = -logf(random_double(gen));
+                arr_photons_atm_mu[idx_photon]  = 2*random_float(gen) - 1;
+                arr_photons_atm_az[idx_photon]  = 2*cf::PI*random_float(gen);
+                arr_photons_atm_tau[idx_photon] = -logf(random_float(gen));
 
                 // Countint photons per gridcell
                 field_atm_photons_per_gridcell[idx_atm] += 1;
             }
 
-            std::vector<double> field_sfc_weights(n_tiles);
+            std::vector<float> field_sfc_weights(n_tiles);
             std::vector<int> field_sfc_idx(n_tiles);
-            double tot_phi_sfc = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0f);
+            float tot_phi_sfc = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0f);
             for (size_t i = 0; i < n_tiles; i++)
             {
                 field_sfc_weights[i] = field_sfc_phi[i] / tot_phi_sfc;
@@ -585,16 +543,16 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_sfc_y  = idx_sfc / ktot;
                 int idx_sfc_x  = idx_sfc % ktot;
 
-                double random_shift_x = random_double(gen) * dx;
-                double random_shift_y = random_double(gen) * dy;
+                float random_shift_x = random_float(gen) * dx;
+                float random_shift_y = random_float(gen) * dy;
 
                 arr_photons_sfc_pos_x[idx_photon] = idx_sfc_x * dx + random_shift_x;
                 arr_photons_sfc_pos_y[idx_photon] = idx_sfc_y * dy + random_shift_y;
 
                 // Angles and optical thickness
-                arr_photons_sfc_mu[idx_photon]  = std::sqrt(random_double(gen));
-                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*random_double(gen);
-                arr_photons_sfc_tau[idx_photon] = -logf(random_double(gen));
+                arr_photons_sfc_mu[idx_photon]  = std::sqrt(random_float(gen));
+                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*random_float(gen);
+                arr_photons_sfc_tau[idx_photon] = -logf(random_float(gen));
 
                 // Countint photons per gridcell
                 field_sfc_photons_per_gridcell[idx_sfc] += 1;
@@ -663,6 +621,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        arr_z,
                        field_atm_absorbed,
                        field_sfc_absorbed,
+                       TOA_absorbed,
                        x_max,
                        y_max,
                        z_max,
@@ -694,6 +653,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        arr_z,
                        field_atm_absorbed,
                        field_sfc_absorbed,
+                       TOA_absorbed,
                        x_max,
                        y_max,
                        z_max,
@@ -710,8 +670,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
     std::cout << "  MC: Calculating heating rates" << std::endl;
 
-    std::vector<double> field_atm_heating_rates(n_volumes);
-    std::vector<double> field_sfc_heating_rates(n_tiles);
+    std::vector<float> field_atm_heating_rates(n_volumes);
+    std::vector<float> field_sfc_heating_rates(n_tiles);
 
     for (int i = 0; i < itot; i++)
     {
@@ -720,14 +680,14 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             for (int k = 0; k < ktot; k++)
             {
                 int idx_atm =  i * ktot * jtot + j * ktot + k;
-                double atm_net_phi = field_atm_absorbed[idx_atm] - field_atm_emitted[idx_atm];
-                double dz = arr_dz[i];
+                float atm_net_phi = field_atm_absorbed[idx_atm] - field_atm_emitted[idx_atm];
+                float dz = arr_dz[i];
                 field_atm_heating_rates[idx_atm] = atm_net_phi / (cf::RHO * cf::CP * dx * dy * dz) * 86400;
 
                 if (i == 0)
                 {
                     int idx_sfc = j * ktot + k;
-                    double sfc_net_phi = field_sfc_absorbed[idx_sfc] - field_sfc_emitted[idx_sfc];
+                    float sfc_net_phi = field_sfc_absorbed[idx_sfc] - field_sfc_emitted[idx_sfc];
                     field_sfc_heating_rates[idx_sfc] = sfc_net_phi / (cf::RHO * cf::CP * dx * dy) * 86400;
                 }
             }
@@ -736,6 +696,34 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
 
+
+
+    // MC energy balance
+    // sfc_source          + atm_source          + TOA_source = sfc_sink                 + atm_sink                 + TOA_sink
+    // field_sfc_phi.sum() + field_atm_phi.sum() + 0          = field_sfc_absorbed.sum() + field_atm_absorbed.sum() + TOA_absorbed
+
+    float sfc_source = kahan_sum(field_sfc_emitted);
+    float sfc_sink   = kahan_sum(field_sfc_absorbed);
+    float atm_source = kahan_sum(field_atm_emitted);
+    float atm_sink   = kahan_sum(field_atm_absorbed);
+    float TOA_source = 0.;
+    float TOA_sink   = TOA_absorbed;
+
+    float netto_phi = sfc_source + atm_source + TOA_source - sfc_sink - atm_sink - TOA_sink;
+    float netto_phi_percentage = netto_phi/(sfc_source + atm_source + TOA_source) * 100.;
+
+
+    std::cout << "+++ MC ENERGY BALANCE ++++++++++++++" << std::endl;
+    std::cout << "+ sfc source:      " << sfc_source << std::endl;
+    std::cout << "+ sfc sink:        " << sfc_sink << std::endl;
+    std::cout << "+ atm source:      " << atm_source << std::endl;
+    std::cout << "+ atm sink:        " << atm_sink << std::endl;
+    std::cout << "+ TOA source:      " << TOA_source << std::endl;
+    std::cout << "+ TOA sink:        " << TOA_sink << std::endl;
+    std::cout << "+                  " << std::endl;
+    std::cout << "+ sources - sinks: " << netto_phi << std::endl;
+    std::cout << "+ as percentage:   " << netto_phi_percentage << std::endl;
+    std::cout << "++++++++++++++++++++++++++++++++++++" << std::endl;
     
 
 

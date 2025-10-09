@@ -26,10 +26,24 @@ void LOGvec(const std::vector<T>& arr, const std::string& name = "Array", bool e
     }
 }
 
+inline float kahan_sum(const std::vector<float>& values) 
+{
+    // from Mr. Chat
+    float sum = 0.0;
+    float c = 0.0;  // Compensation
+    for (float x : values) {
+        float y = x - c;
+        float t = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+    }
+    return sum;
+}
+
 
 namespace cf
 {
-    const double PI = 3.1415927;
-    const double RHO = 1.225;
-    const double CP = 1004;
+    const float PI = 3.1415927;
+    const float RHO = 1.225;
+    const float CP = 1004;
 }
