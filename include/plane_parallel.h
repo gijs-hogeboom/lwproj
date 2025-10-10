@@ -5,29 +5,29 @@
 
 
 
-std::vector<float> linspace(float start, float end, int N);
+std::vector<double> linspace(double start, double end, int N);
 
-std::vector<float> cumulative_trapezoid(const std::vector<float>& arr_x,
-                                        const std::vector<float>& arr_y);
+std::vector<double> cumulative_trapezoid(const std::vector<double>& arr_x,
+                                        const std::vector<double>& arr_y);
 
-float trapezoid(const std::vector<float>& arr_y, float dx);
+double trapezoid(const std::vector<double>& arr_y, double dx);
 
-float trapezoid(const std::vector<float>& arr_x,
-                const std::vector<float>& arr_y);
+double trapezoid(const std::vector<double>& arr_x,
+                const std::vector<double>& arr_y);
 
-std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
-                                      const std::vector<float>& arr_zh,
-                                      const std::vector<float>& arr_dz,
-                                      const std::vector<float>& arr_kext,
-                                      const std::vector<float>& arr_Batm,
-                                      const std::vector<float>& arr_Batmh,
-                                      const std::string& CASE,
-                                      float Bsfc,
-                                      int N_mu);
+std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
+                                      const std::vector<double>& arr_zh,
+                                      const std::vector<double>& arr_dz,
+                                      const std::vector<double>& arr_kext,
+                                      const std::vector<double>& arr_Batm,
+                                      const std::vector<double>& arr_Batmh,
+                                      double Bsfc,
+                                      int N_mu,
+                                      std::vector<double>& EB_PP);
 
 
-float I_upwards_emission(float tau_prime, float B_at_tau_prime, float tau, float mu);
-float I_upwards_exctinction(float tau, float mu, float I_at_sfc, float tau_at_sfc);
-float I_downwards_emission(float tau_prime, float B_at_tau_prime, float tau, float mu);
-float I_downwards_exctinction(float tau, float mu, float I_at_TOA, float tau_at_TOA);
-float I_complete(float term_extinction, const std::vector<float>& vec_emission_values, float dtau, float mu);
+double I_upwards_emission(double tau_prime, double B_at_tau_prime, double tau, double mu);
+double I_upwards_exctinction(double tau, double mu, double I_at_sfc, double tau_at_sfc);
+double I_downwards_emission(double tau_prime, double B_at_tau_prime, double tau, double mu);
+double I_downwards_exctinction(double tau, double mu, double I_at_TOA, double tau_at_TOA);
+double I_complete(double term_extinction, const std::vector<double>& vec_emission_values, double dtau, double mu);
