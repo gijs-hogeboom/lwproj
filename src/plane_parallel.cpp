@@ -38,6 +38,7 @@ public:
 };
 
 
+
 std::vector<double> linspace(double start, double end, int N)
 {
     std::vector<double> arr_result(N);
@@ -199,7 +200,7 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     auto f_B_tauh = [&](double tau) { return B_tauh(tau); };
 
     double tau_at_sfc = arr_tauh[0];
-    double tau_at_TOA = arr_tauh[arr_tauh.size()-1];
+    double tau_at_TOA = arr_tauh[itoth-1];
 
     double I_at_sfc = Bsfc;
     double I_at_TOA = 0.;
@@ -211,77 +212,125 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     double ktot = 200.;
 
 
-    // Calculating emission terms
-    std::cout << "  PP: Calculating emission terms" << std::endl;
+    // // Calculating emission terms
+    // std::cout << "  PP: Calculating emission terms" << std::endl;
 
-    std::vector<double> M_I_emission_uph(itoth*jtot*ktot);
-    std::vector<double> M_I_emission_downh(itoth*jtot*ktot);
+    // std::vector<double> M_I_emission_uph(itoth*jtot*ktot);
+    // std::vector<double> M_I_emission_downh(itoth*jtot*ktot);
 
-    std::vector<double> arr_dtau_uph(itoth);
-    std::vector<double> arr_dtau_downh(itoth);
+    // std::vector<double> arr_dtau_uph(itoth);
+    // std::vector<double> arr_dtau_downh(itoth);
     
 
-    for (size_t i = 0; i < itoth; i++)
-    {
-        // Loading tau
-        double tau = arr_tauh[i];
+    // for (size_t i = 0; i < itoth; i++)
+    // {
+    //     // Loading tau
+    //     double tau = arr_tauh[i];
 
-        // Storing dtau at this level
-        arr_dtau_uph[i]   = (tau_at_sfc - tau)/(ktot-1);
-        arr_dtau_downh[i] = (tau - tau_at_TOA)/(ktot-1);
+    //     // Storing dtau at this level
+    //     arr_dtau_uph[i]   = (tau_at_sfc - tau)/(ktot-1);
+    //     arr_dtau_downh[i] = (tau - tau_at_TOA)/(ktot-1);
 
-        for (size_t j = 0; j < jtot; j++)
-        {
-            // Loading mu
-            double mu = arr_mu[j];
-            for (double k = 0.; k < ktot; k++)
-            {
-                int idx = i*jtot*ktot + j*ktot + k;
+    //     for (size_t j = 0; j < jtot; j++)
+    //     {
+    //         // Loading mu
+    //         double mu = arr_mu[j];
+    //         for (double k = 0.; k < ktot; k++)
+    //         {
+    //             int idx = i*jtot*ktot + j*ktot + k;
 
-                double tau_prime_up        = (k/(ktot-1)*tau        + (1 - k/(ktot-1))*tau_at_sfc);
-                double B_at_tau_prime_up   = f_B_tauh(tau_prime_up);
-                M_I_emission_uph[idx]     = I_upwards_emission(tau_prime_up, B_at_tau_prime_up, tau, mu);
+    //             double tau_prime_up        = (k/(ktot-1)*tau        + (1 - k/(ktot-1))*tau_at_sfc);
+    //             double B_at_tau_prime_up   = f_B_tauh(tau_prime_up);
+    //             M_I_emission_uph[idx]     = I_upwards_emission(tau_prime_up, B_at_tau_prime_up, tau, mu);
                 
-                double tau_prime_down      = (k/(ktot-1)*tau_at_TOA + (1 - k/(ktot-1))*tau);
-                double B_at_tau_prime_down = f_B_tauh(tau_prime_down);
-                M_I_emission_downh[idx]   = I_downwards_emission(tau_prime_down, B_at_tau_prime_down, tau, mu);
-            }
-        }
-    }
+    //             double tau_prime_down      = (k/(ktot-1)*tau_at_TOA + (1 - k/(ktot-1))*tau);
+    //             double B_at_tau_prime_down = f_B_tauh(tau_prime_down);
+    //             M_I_emission_downh[idx]   = I_downwards_emission(tau_prime_down, B_at_tau_prime_down, tau, mu);
+    //         }
+    //     }
+    // }
 
-    // Calculating I(tau, mu)
+
+    // // Calculating I(tau, mu)
+    // std::cout << "  PP: Calculating I(tau, mu)" << std::endl;
+
+    // std::vector<double> M_I_uph(itoth*jtot);
+    // std::vector<double> M_I_downh(itoth*jtot);
+
+    // for (size_t i = 0; i < itoth; i++)
+    // {
+    //     double tau = arr_tauh[i];
+    //     double dtau_up = arr_dtau_uph[i];
+    //     double dtau_down = arr_dtau_downh[i];
+    //     for (size_t j = 0; j < jtot; j++)
+    //     {
+    //         double mu = arr_mu[j];
+    //         int idx = i*jtot + j;
+    //         std::vector<double> I_uph_kaxis(ktot);
+    //         std::vector<double> I_downh_kaxis(ktot);
+    //         for (size_t k = 0; k < ktot; k++)
+    //         {
+    //             int idx_k = i*jtot*ktot + j*ktot + k;
+    //             I_uph_kaxis[k]   = M_I_emission_uph[idx_k];
+    //             I_downh_kaxis[k] = M_I_emission_downh[idx_k];
+    //         }
+
+    //         M_I_uph[idx] = I_complete(I_upwards_exctinction(tau, mu, I_at_sfc, tau_at_sfc),
+    //                                   I_uph_kaxis, 
+    //                                   dtau_up,
+    //                                   mu);
+    //         M_I_downh[idx] = I_complete(I_downwards_exctinction(tau, mu, I_at_TOA, tau_at_TOA),
+    //                                     I_downh_kaxis, 
+    //                                     dtau_down,
+    //                                     mu);
+        
+    //     }
+    // }
+
+
+
+    /// TEST ////////
     std::cout << "  PP: Calculating I(tau, mu)" << std::endl;
-
     std::vector<double> M_I_uph(itoth*jtot);
     std::vector<double> M_I_downh(itoth*jtot);
 
-    for (size_t i = 0; i < itoth; i++)
+    for (int ih = 0; ih < itoth; ih++)
     {
-        double tau = arr_tauh[i];
-        double dtau_up = arr_dtau_uph[i];
-        double dtau_down = arr_dtau_downh[i];
-        for (size_t j = 0; j < jtot; j++)
+        // Loading tau
+        double tau = arr_tauh[ih];
+
+        for (int j = 0; j < jtot; j++)
         {
+            // Loading mu
             double mu = arr_mu[j];
-            int idx = i*jtot + j;
-            std::vector<double> I_uph_kaxis(ktot);
-            std::vector<double> I_downh_kaxis(ktot);
-            for (size_t k = 0; k < ktot; k++)
+
+            // Calculating extinction term
+            double extinction_term_uph   = I_upwards_exctinction(tau, mu, I_at_sfc, tau_at_sfc);
+            double extinction_term_downh = I_downwards_exctinction(tau, mu, I_at_TOA, tau_at_TOA);
+
+            double emission_term_uph = 0.;
+            double emission_term_downh = 0.;
+
+            if ((ih == 0) && (j == (N_mu-50))) {std::cout << "here" << std::endl;}
+
+            for (int k = 0; k < ih; k++)
             {
-                int idx_k = i*jtot*ktot + j*ktot + k;
-                I_uph_kaxis[k]   = M_I_emission_uph[idx_k];
-                I_downh_kaxis[k] = M_I_emission_downh[idx_k];
+                double temp = (arr_Batm[k] * (std::exp(-(arr_tauh[k+1] - tau)/mu) - std::exp(-(arr_tauh[k] - tau)/mu))); 
+                emission_term_uph += temp;
+            }
+            for (int k = (itot-1); k > (ih - 1); k--)
+            {
+                if ((ih == 0) && (j == (N_mu-50))) {std::cout << k << std::endl;}
+                double temp = (arr_Batm[k] * (std::exp(-(tau - arr_tauh[k])/mu) - std::exp(-(tau - arr_tauh[k+1])/mu)));
+                emission_term_downh += temp;
             }
 
-            M_I_uph[idx] = I_complete(I_upwards_exctinction(tau, mu, I_at_sfc, tau_at_sfc),
-                                      I_uph_kaxis, 
-                                      dtau_up,
-                                      mu);
-            M_I_downh[idx] = I_complete(I_downwards_exctinction(tau, mu, I_at_TOA, tau_at_TOA),
-                                        I_downh_kaxis, 
-                                        dtau_down,
-                                        mu);
+            if ((ih == 0) && (j == (N_mu-50))) {std::cout << ih << ',' << j << ',' << ": Emission down: " << emission_term_downh <<  std::endl;}                
+            if ((ih == 0) && (j == (N_mu-50))) {std::cout << ih << ',' << j << ',' << ": Emission up:   " << emission_term_uph <<  std::endl;}                
 
+            int idx = ih*jtot + j;
+            M_I_uph[idx] = extinction_term_uph + emission_term_uph;
+            M_I_downh[idx] = extinction_term_downh + emission_term_downh;
         }
     }
 
@@ -311,13 +360,14 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     }
 
     // Calculating net flux at each cell
-
     std::vector<double> arr_F_net(itot);
     for (size_t i = 0; i < itot; i++)
     {
         arr_F_net[i] = arr_F_uph[i] + arr_F_downh[i+1] - arr_F_uph[i+1] - arr_F_downh[i];
     }
 
+    // LOGvec(arr_F_uph, "F up", true);
+    // LOGvec(arr_F_downh, "F down", true);
 
     // Calculating heating rates at each cell
     std::cout << "  PP: Calculating heating rates" << std::endl;
@@ -343,13 +393,21 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
 
 
     std::cout << "+++ PP ENERGY BALANCE ++++++++++++++" << std::endl;
+    std::cout << "+ -- source ------------------------" << std::endl;
     std::cout << "+ sfc source:      " << sfc_source << std::endl;
-    std::cout << "+ atm ...          " << std::endl;
+    std::cout << "+ atm source:      -" << std::endl;
     std::cout << "+ TOA source:      " << TOA_source << std::endl;
+    std::cout << "+ -- sinks -------------------------" << std::endl;
     std::cout << "+ sfc sink:        " << sfc_sink << std::endl;
-    std::cout << "+ atm netto:       " << atm_netto << std::endl;
+    std::cout << "+ atm sink:        -" << std::endl;
     std::cout << "+ TOA sink:        " << TOA_sink << std::endl;
-    std::cout << "+                  " << std::endl;
+    std::cout << "+ -- net ---------------------------" << std::endl;
+    std::cout << "+ sfc net:         " << sfc_sink - sfc_source << std::endl;
+    std::cout << "+ atm net:         " << atm_netto << std::endl;
+    std::cout << "+ TOA net:         " << TOA_sink - TOA_source << std::endl;
+    std::cout << "+ -- sums --------------------------" << std::endl;
+    std::cout << "+ sources:          unknown" << std::endl;
+    std::cout << "+ sinks:            unknown" << std::endl;
     std::cout << "+ sources - sinks: " << netto_phi << std::endl;
     std::cout << "+ as percentage:   " << netto_phi_percentage << std::endl;
     std::cout << "++++++++++++++++++++++++++++++++++++" << std::endl;

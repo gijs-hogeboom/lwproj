@@ -43,7 +43,7 @@ int main()
         
 
 
-    int my_photons = 21;
+    int my_photons = 23;
 
     
     for (int n_phot_pow = my_photons; n_phot_pow < (my_photons+1); n_phot_pow++)
@@ -52,7 +52,7 @@ int main()
         std::cout << "Start of program, reading input data" << std::endl;
 
         // Control variables
-        std::string CASE = "gpt3";                   // {gpt0, gpt1, gpt3, gpt21}
+        std::string CASE = "gpt1";                   // {gpt0, gpt1, gpt3, gpt21}
         bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
         bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
         double dx = 1e8;                               // [m]
@@ -62,7 +62,7 @@ int main()
         std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, (power-gradient)}
         std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
 
-        int N_mu = 30;                                // Number of angles to calculate at each height in PP-algorithm
+        int N_mu = 100;                                // Number of angles to calculate at each height in PP-algorithm
 
 
 

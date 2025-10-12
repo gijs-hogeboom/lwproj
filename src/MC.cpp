@@ -72,10 +72,11 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
     const double eps = 1e-3;
     const int jktot = jtot * ktot;
 
+    int photons_that_crossed_boundaries = 0;
 
     for (int idx_photon = 0; idx_photon < N; idx_photon++)
     {
-
+        bool cell_boundary_crossed = false;
         
         // Loading initial photon variables
         int idx_flat = arr_photons_pos_idx[idx_photon];
@@ -246,7 +247,7 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 x += dist_x;
                 y += dist_y;
                 z += dist_z;
-
+                cell_boundary_crossed = true;
             }
             else
             {
@@ -259,7 +260,13 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 field_atm_absorbed[idx_flat] += arr_photons_phi[idx_photon];
             }
         }
+
+        if (cell_boundary_crossed) {photons_that_crossed_boundaries++;}
     }
+
+    float photons_that_crossed_boundaries_percentage = photons_that_crossed_boundaries / N * 100.;
+    std::cout << domain_section << ": photons that crossed cell boundaries: " << photons_that_crossed_boundaries << '/' << N << std::endl;
+    std::cout << domain_section << ": percentage wise:                      " << photons_that_crossed_boundaries_percentage << std::endl;
 }
 
 
@@ -760,13 +767,19 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
     std::cout << "+++ MC ENERGY BALANCE ++++++++++++++" << std::endl;
+    std::cout << "+ -- source ------------------------" << std::endl;
     std::cout << "+ sfc source:      " << sfc_source << std::endl;
     std::cout << "+ atm source:      " << atm_source << std::endl;
     std::cout << "+ TOA source:      " << TOA_source << std::endl;
+    std::cout << "+ -- sinks -------------------------" << std::endl;
     std::cout << "+ sfc sink:        " << sfc_sink << std::endl;
     std::cout << "+ atm sink:        " << atm_sink << std::endl;
     std::cout << "+ TOA sink:        " << TOA_sink << std::endl;
-    std::cout << "+                  " << std::endl;
+    std::cout << "+ -- net ---------------------------" << std::endl;
+    std::cout << "+ sfc net:         " << sfc_sink - sfc_source << std::endl;
+    std::cout << "+ atm net:         " << atm_sink - atm_source << std::endl;
+    std::cout << "+ TOA net:         " << TOA_sink - TOA_source << std::endl;
+    std::cout << "+ -- sums --------------------------" << std::endl;
     std::cout << "+ sources:         " << sfc_source + atm_source + TOA_source << std::endl;
     std::cout << "+ sinks:           " << sfc_sink + atm_sink + TOA_sink << std::endl;
     std::cout << "+ sources - sinks: " << netto_phi << std::endl;
