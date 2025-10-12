@@ -311,8 +311,6 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
             double emission_term_uph = 0.;
             double emission_term_downh = 0.;
 
-            if ((ih == 0) && (j == (N_mu-50))) {std::cout << "here" << std::endl;}
-
             for (int k = 0; k < ih; k++)
             {
                 double temp = (arr_Batm[k] * (std::exp(-(arr_tauh[k+1] - tau)/mu) - std::exp(-(arr_tauh[k] - tau)/mu))); 
