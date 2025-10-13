@@ -7,6 +7,7 @@
 
 #include "MC.h"
 #include "plane_parallel.h"
+#include "util.h"
 
 
 int main()
@@ -43,7 +44,7 @@ int main()
         
 
 
-    int my_photons = 23;
+    int my_photons = 25;
 
     
     for (int n_phot_pow = my_photons; n_phot_pow < (my_photons+1); n_phot_pow++)
@@ -237,6 +238,19 @@ int main()
             file_PPinput.close();
         }
 
+
+        ////////////// Calculating metrics ///////////////////////
+        double RMSE, ME;
+
+        for (size_t i = 0; i < itot; i++)
+        {
+            RMSE += (1./itot)*pow(heating_rates_MC_in[i] - heating_rates_PP_in[i], 2);
+            ME   += (1./itot)*(heating_rates_MC_in[i] - heating_rates_PP_in[i]);
+        }
+        RMSE = std::sqrt(RMSE);
+
+
+
         ////////////// Plotting results //////////////////////////
         Gnuplot gp;
 
@@ -255,16 +269,19 @@ int main()
 
 
         ////////////// Printing results //////////////////////////
-        // std::cout << "====================================" << std::endl;
-        // std::cout << "                Done!" << std::endl;
-        // std::cout << "Parameters:" << std::endl;
-        // std::cout << "- Natm: " << Natm_pow << std::endl;
-        // std::cout << "- Nsfc: " << Nsfc_pow << std::endl;
-        // std::cout << "- N_Mu: " << N_mu << std::endl;
-        // std::cout << "Timers:" << std::endl;
-        // std::cout << "   | MC time: " << MC_time.count()/1000 << std::endl;
-        // std::cout << "   | PP time: " << PP_time.count()/1000 << std::endl;
-        // std::cout << "====================================" << std::endl;
+        std::cout << "====================================" << std::endl;
+        std::cout << "                Done!" << std::endl;
+        std::cout << "Parameters:" << std::endl;
+        std::cout << "   | Natm:        " << Natm_pow << std::endl;
+        std::cout << "   | Nsfc:        " << Nsfc_pow << std::endl;
+        std::cout << "   | N_Mu:        " << N_mu << std::endl;
+        std::cout << "Timers:" << std::endl;
+        std::cout << "   | MC time:     " << MC_time.count()/1000 << std::endl;
+        std::cout << "   | PP time:     " << PP_time.count()/1000 << std::endl;
+        std::cout << "Metrics:" << std::endl;
+        std::cout << "   | RMSE:        " << RMSE << std::endl;
+        std::cout << "   | ME:          " << ME << std::endl;
+        std::cout << "====================================" << std::endl;
 
         // Writing to debugfile
         if constexpr (write_EB)

@@ -5,8 +5,10 @@ project(LWproj)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Find Boost Iostreams
+# Find Boost Iostreams for numerical integration and OMP for parallelization
 find_package(Boost REQUIRED COMPONENTS iostreams)
+find_package(OpenMP REQUIRED)
+
 
 # Add executable
 add_executable(lwproj
@@ -23,3 +25,4 @@ target_include_directories(lwproj PRIVATE
 
 # Link Boost libraries
 target_link_libraries(lwproj PRIVATE ${Boost_LIBRARIES})
+target_link_libraries(lwproj PRIVATE OpenMP::OpenMP_CXX)

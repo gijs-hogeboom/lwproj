@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <iostream>
+#include <iomanip>
+#include <stdexcept>
 
 template <typename T>
 void LOGvec(const std::vector<T>& arr, const std::string& name = "Array", bool enters = false)
@@ -23,6 +25,25 @@ void LOGvec(const std::vector<T>& arr, const std::string& name = "Array", bool e
         {
             std::cout << std::endl;
         }
+    }
+}
+
+template<typename T>
+void printElement(const T& value, int width = 10) {
+    std::cout << std::setw(width) << value;
+}
+
+template<typename FirstVec, typename... RestVecs>
+void LOGvecCompare(const FirstVec& first, const RestVecs&... rest) {
+    // Ensure all vectors have the same size
+    size_t n = first.size();
+    ((rest.size() == n ? void() : throw std::runtime_error("All vectors must have the same size")), ...);
+
+    // Print each row
+    for (size_t i = 0; i < n; ++i) {
+        printElement(first[i]);
+        ((std::cout << ", ", printElement(rest[i])), ...);
+        std::cout << "," << std::endl;
     }
 }
 

@@ -9,6 +9,9 @@
 #include <numeric>
 #include <algorithm>
 #include <cstdint>
+#include <queue>
+#include <omp.h>
+#include <chrono>
 
 #include "util.h"
 
@@ -66,32 +69,44 @@ struct FastRNG {
 };
 
 
-// Function to perform weighted or unweighted random choice
-template <typename T>
-std::vector<T> random_choice(const std::vector<T>& a, size_t size, const std::vector<double>& weights = {}
-) {
-    if (a.empty()) throw std::invalid_argument("Input array is empty.");
-    if (!weights.empty() && weights.size() != a.size())
-        throw std::invalid_argument("Weights must have the same length as input array.");
+struct AliasTable {
+    std::vector<double> prob;
+    std::vector<int> alias;
+    int n;
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::vector<T> result;
-    result.reserve(size);
+    AliasTable(const std::vector<double>& weights) {
+        n = weights.size();
+        prob.resize(n);
+        alias.resize(n);
 
-    // With replacement: use discrete_distribution if weights provided
-    if (!weights.empty()) {
-        std::discrete_distribution<> dist(weights.begin(), weights.end());
-        for (size_t i = 0; i < size; ++i)
-            result.push_back(a[dist(gen)]);
-    } else {
-        std::uniform_int_distribution<> dist(0, static_cast<int>(a.size()) - 1);
-        for (size_t i = 0; i < size; ++i)
-            result.push_back(a[dist(gen)]);
+        std::vector<double> scaled(weights);
+        double sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
+        for (auto& w : scaled) w *= n / sum;
+
+        std::queue<int> small, large;
+        for (int i = 0; i < n; ++i)
+            (scaled[i] < 1.0 ? small : large).push(i);
+
+        while (!small.empty() && !large.empty()) {
+            int s = small.front(); small.pop();
+            int l = large.front(); large.pop();
+            prob[s] = scaled[s];
+            alias[s] = l;
+            scaled[l] = scaled[l] + scaled[s] - 1.0;
+            (scaled[l] < 1.0 ? small : large).push(l);
+        }
+
+        while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
+        while (!small.empty()) { prob[small.front()] = 1.0; small.pop(); }
     }
 
-    return result;
-}
+    inline int sample(FastRNG& rng) const {
+        int i = rng.rng.next() % n;
+        double r = rng.rng.next_double();
+        return (r < prob[i]) ? i : alias[i];
+    }
+};
+
 
 
 
@@ -127,14 +142,12 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                         int N,
                         int domain_section)
 {
-    const double eps = 1e-3;
+    const double eps = 1e-5;
     const int jktot = jtot * ktot;
 
-    int photons_that_crossed_boundaries = 0;
-
+    // #pragma omp for schedule(dynamic)
     for (int idx_photon = 0; idx_photon < N; idx_photon++)
     {
-        bool cell_boundary_crossed = false;
         
         // Loading initial photon variables
         int idx_flat = arr_photons_pos_idx[idx_photon];
@@ -150,6 +163,7 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
         double dx = s*cos(az);
         double dy = s*sin(az);
         double dz = mu;
+
 
         // Finding photon position as idx of the field
         // TODO - does not work exactly on cell boundaries, since it does not take direction into account
@@ -185,14 +199,14 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
         {
 
             // field boundary detection in x direction - wrapping
-            bool at_far_wall_x     = (abs(x - x_max) < eps);
+            bool at_far_wall_x     = (std::abs(x - x_max) < eps);
             bool going_forwards_x  = (dx >= 0.);
             if (at_far_wall_x && going_forwards_x) 
             { 
                 x = 0.;
                 idx_x = 0;
             }
-            bool at_near_wall_x    = (abs(x) < eps);
+            bool at_near_wall_x    = (std::abs(x) < eps);
             bool going_backwards_x = (dx < 0.);
             if (at_near_wall_x && going_backwards_x) 
             { 
@@ -201,14 +215,14 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
             }
 
             // field boundary detection in y direction - wrapping
-            bool at_far_wall_y     = (abs(y - y_max) < eps);
+            bool at_far_wall_y     = (std::abs(y - y_max) < eps);
             bool going_forwards_y  = (dy >= 0.);
             if (at_far_wall_y && going_forwards_y) 
             { 
                 y = 0.; 
                 idx_y = 0;
             }
-            bool at_near_wall_y    = (abs(y) < eps);
+            bool at_near_wall_y    = (std::abs(y) < eps);
             bool going_backwards_y = (dy < 0.);
             if (at_near_wall_y && going_backwards_y) 
             { 
@@ -217,20 +231,24 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
             }
 
             // field boundary detection in z direction - loss through TOA or absorbtion by surface
-            bool at_TOA            = (abs(z - z_max) < eps);
+            bool at_TOA            = (std::abs(z - z_max) < eps);
             bool going_up          = (dz >= 0.);
             if (at_TOA && going_up)
             {
                 tau = 0.;
+
+                // #pragma omp atomic
                 TOA_absorbed += arr_photons_phi[idx_photon];
                 break;
             }
-            bool at_surface        = (abs(z) < eps);
+            bool at_surface        = (std::abs(z) < eps);
             bool going_down        = (dz < 0.);
             if (at_surface && going_down)
             {
                 tau = 0.;
                 int idx_sfc = idx_y * ktot + idx_x;
+
+                // #pragma omp atomic
                 field_sfc_absorbed[idx_sfc] += arr_photons_phi[idx_photon];
                 break;
             }
@@ -305,7 +323,6 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 x += dist_x;
                 y += dist_y;
                 z += dist_z;
-                cell_boundary_crossed = true;
             }
             else
             {
@@ -315,16 +332,11 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 y += dist_y*fs;
                 z += dist_z*fs;
 
+                // #pragma omp atomic
                 field_atm_absorbed[idx_flat] += arr_photons_phi[idx_photon];
             }
         }
-
-        if (cell_boundary_crossed) {photons_that_crossed_boundaries++;}
     }
-
-    float photons_that_crossed_boundaries_percentage = photons_that_crossed_boundaries / N * 100.;
-    std::cout << domain_section << ": photons that crossed cell boundaries: " << photons_that_crossed_boundaries << '/' << N << std::endl;
-    std::cout << domain_section << ": percentage wise:                      " << photons_that_crossed_boundaries_percentage << std::endl;
 }
 
 
@@ -350,7 +362,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     std::cout << "  MC: Initializing domain" << std::endl;
  
     // Randomization setup
-    FastRNG rng(1);
+    FastRNG rng(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
     // Initializing domain skeleton
     int n_volumes = itot * jtot * ktot;
@@ -398,6 +410,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     std::vector<double> field_sfc_emitted(n_tiles);
 
     // Generating fields
+    #pragma omp parallel for collapse(3)
     for (int i = 0; i < itot; i++)
     {
         for (int j = 0; j < jtot; j++)
@@ -558,84 +571,77 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         {
             // Atmosphere
             // Generating weighted choice
-            std::cout << " Generating random atm..." << std::endl;
 
-            std::vector<double> field_atm_weights(n_volumes);
-            std::vector<int> field_atm_idx(n_volumes);
-            double tot_phi_atm = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0f);
-            for (size_t idx_atm = 0; idx_atm < n_volumes; idx_atm++)
+            AliasTable alias_atm(field_atm_phi);
+
+            #pragma omp parallel
             {
-                field_atm_weights[idx_atm] = field_atm_phi[idx_atm] / tot_phi_atm;
-                field_atm_idx[idx_atm] = idx_atm;
+                FastRNG rng_local(omp_get_thread_num() + std::chrono::high_resolution_clock::now().time_since_epoch().count());
+                #pragma omp for
+                for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
+                {
+
+                    // Position
+                    arr_photons_atm_pos_idx[idx_photon] = alias_atm.sample(rng_local);
+                    int idx_atm = arr_photons_atm_pos_idx[idx_photon];
+                                    
+                    int jktot = ktot * jtot;
+                    int idx_atm_z  = idx_atm / jktot;
+                    int idx_atm_2D = idx_atm % jktot;
+                    int idx_atm_y  = idx_atm_2D / ktot;
+                    int idx_atm_x  = idx_atm_2D % ktot;
+
+                    double random_shift_x = rng_local.uniform() * dx;
+                    double random_shift_y = rng_local.uniform() * dy;
+                    double random_shift_z = rng_local.uniform() * arr_dz[idx_atm_z];
+
+                    arr_photons_atm_pos_x[idx_photon] = idx_atm_x * dx + random_shift_x;
+                    arr_photons_atm_pos_y[idx_photon] = idx_atm_y * dy + random_shift_y;
+                    arr_photons_atm_pos_z[idx_photon] = arr_zh[idx_atm_z] + random_shift_z;
+
+                    // Angles and optical thickness
+                    arr_photons_atm_mu[idx_photon]  = 2*rng_local.uniform() - 1;
+                    arr_photons_atm_az[idx_photon]  = 2*cf::PI*rng_local.uniform();
+                    arr_photons_atm_tau[idx_photon] = -logf(rng_local.uniform());
+
+                    // Countint photons per gridcell
+                    #pragma omp atomic
+                    field_atm_photons_per_gridcell[idx_atm] += 1;
+                }
             }
-
-            arr_photons_atm_pos_idx = random_choice(field_atm_idx, Natm, field_atm_weights);
-
-            std::cout << " Sampling atm..." << std::endl;
-            for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
-            {
-                // Position
-                int idx_atm = arr_photons_atm_pos_idx[idx_photon];
-                                
-                int jktot = ktot * jtot;
-                int idx_atm_z  = idx_atm / jktot;
-                int idx_atm_2D = idx_atm % jktot;
-                int idx_atm_y  = idx_atm_2D / ktot;
-                int idx_atm_x  = idx_atm_2D % ktot;
-
-                double random_shift_x = rng.uniform() * dx;
-                double random_shift_y = rng.uniform() * dy;
-                double random_shift_z = rng.uniform() * arr_dz[idx_atm_z];
-
-                arr_photons_atm_pos_x[idx_photon] = idx_atm_x * dx + random_shift_x;
-                arr_photons_atm_pos_y[idx_photon] = idx_atm_y * dy + random_shift_y;
-                arr_photons_atm_pos_z[idx_photon] = arr_zh[idx_atm_z] + random_shift_z;
-
-                // Angles and optical thickness
-                arr_photons_atm_mu[idx_photon]  = 2*rng.uniform() - 1;
-                arr_photons_atm_az[idx_photon]  = 2*cf::PI*rng.uniform();
-                arr_photons_atm_tau[idx_photon] = -logf(rng.uniform());
-
-                // Countint photons per gridcell
-                field_atm_photons_per_gridcell[idx_atm] += 1;
-            }
-            std::cout << " Generating random sfc..." << std::endl;
-
-            std::vector<double> field_sfc_weights(n_tiles);
-            std::vector<int> field_sfc_idx(n_tiles);
-            double tot_phi_sfc = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0f);
-            for (size_t i = 0; i < n_tiles; i++)
-            {
-                field_sfc_weights[i] = field_sfc_phi[i] / tot_phi_sfc;
-                field_sfc_idx[i] = i;
-            }
-
-            arr_photons_sfc_pos_idx = random_choice(field_sfc_idx, Nsfc, field_sfc_weights);
-            std::cout << " Sampling sfcy..." << std::endl;
-
+            
             // Surface
-            for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+            AliasTable alias_sfc(field_sfc_phi);
+            #pragma omp parallel
             {
-                // Position
-                int idx_sfc = arr_photons_sfc_pos_idx[idx_photon];
+                FastRNG rng_local(omp_get_thread_num() + std::chrono::high_resolution_clock::now().time_since_epoch().count());
+                #pragma omp for
+                for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+                {
+                    // Position
+                    arr_photons_sfc_pos_idx[idx_photon] = alias_sfc.sample(rng_local);
+                    int idx_sfc = arr_photons_sfc_pos_idx[idx_photon];
 
-                int idx_sfc_y  = idx_sfc / ktot;
-                int idx_sfc_x  = idx_sfc % ktot;
+                    int idx_sfc_y  = idx_sfc / ktot;
+                    int idx_sfc_x  = idx_sfc % ktot;
 
-                double random_shift_x = rng.uniform() * dx;
-                double random_shift_y = rng.uniform() * dy;
+                    double random_shift_x = rng_local.uniform() * dx;
+                    double random_shift_y = rng_local.uniform() * dy;
 
-                arr_photons_sfc_pos_x[idx_photon] = idx_sfc_x * dx + random_shift_x;
-                arr_photons_sfc_pos_y[idx_photon] = idx_sfc_y * dy + random_shift_y;
+                    arr_photons_sfc_pos_x[idx_photon] = idx_sfc_x * dx + random_shift_x;
+                    arr_photons_sfc_pos_y[idx_photon] = idx_sfc_y * dy + random_shift_y;
 
-                // Angles and optical thickness
-                arr_photons_sfc_mu[idx_photon]  = std::sqrt(rng.uniform());
-                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*rng.uniform();
-                arr_photons_sfc_tau[idx_photon] = -logf(rng.uniform());
+                    // Angles and optical thickness
+                    arr_photons_sfc_mu[idx_photon]  = std::sqrt(rng_local.uniform());
+                    arr_photons_sfc_az[idx_photon]  = 2*cf::PI*rng_local.uniform();
+                    arr_photons_sfc_tau[idx_photon] = -logf(rng_local.uniform());
 
-                // Countint photons per gridcell
-                field_sfc_photons_per_gridcell[idx_sfc] += 1;
+                    // Countint photons per gridcell
+                    #pragma omp atomic
+                    field_sfc_photons_per_gridcell[idx_sfc] += 1;
+                }
             }
+            
 
 
             // Calculating the power per photon for each cell in the field
@@ -778,6 +784,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        1);
 
 
+    LOGvecCompare(field_sfc_absorbed, field_sfc_emitted);
+
     ///////////////// CALCULATING HEATING RATES /////////////////
 
     std::cout << "  MC: Calculating heating rates" << std::endl;
@@ -785,6 +793,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     std::vector<double> field_atm_heating_rates(n_volumes);
     std::vector<double> field_sfc_heating_rates(n_tiles);
 
+    #pragma omp parallel for collapse(3)
     for (int i = 0; i < itot; i++)
     {
         for (int j = 0; j < jtot; j++)
