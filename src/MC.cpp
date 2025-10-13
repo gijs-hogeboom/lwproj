@@ -8,8 +8,62 @@
 #include <string>
 #include <numeric>
 #include <algorithm>
+#include <cstdint>
 
 #include "util.h"
+
+
+
+
+struct Xoshiro256ss {
+    uint64_t s[4];
+
+    Xoshiro256ss(uint64_t seed = 1) {
+        // SplitMix64 to initialize the state
+        uint64_t z = seed + 0x9e3779b97f4a7c15ULL;
+        for (int i = 0; i < 4; ++i) {
+            z ^= (z >> 30); z *= 0xbf58476d1ce4e5b9ULL;
+            z ^= (z >> 27); z *= 0x94d049bb133111ebULL;
+            z ^= (z >> 31);
+            s[i] = z;
+            z += 0x9e3779b97f4a7c15ULL;
+        }
+    }
+
+    inline uint64_t next() {
+        const uint64_t result = rotl(s[1] * 5, 7) * 9;
+        const uint64_t t = s[1] << 17;
+        s[2] ^= s[0];
+        s[3] ^= s[1];
+        s[1] ^= s[2];
+        s[0] ^= s[3];
+        s[2] ^= t;
+        s[3] = rotl(s[3], 45);
+        return result;
+    }
+
+    inline double next_double() {
+        // Take upper 53 bits of next() and convert to double in [0,1)
+        return (next() >> 11) * (1.0 / 9007199254740992.0);
+    }
+
+private:
+    static inline uint64_t rotl(const uint64_t x, int k) {
+        return (x << k) | (x >> (64 - k));
+    }
+};
+
+
+struct FastRNG {
+    Xoshiro256ss rng;
+    FastRNG(uint64_t seed) : rng(seed) {}
+
+    inline double uniform() { return rng.next_double(); }
+
+    inline int uniform_int(int max_exclusive) {
+        return static_cast<int>((rng.next() * (uint64_t)max_exclusive) >> 64);
+    }
+};
 
 
 // Function to perform weighted or unweighted random choice
@@ -38,6 +92,10 @@ std::vector<T> random_choice(const std::vector<T>& a, size_t size, const std::ve
 
     return result;
 }
+
+
+
+
 
 
 void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
@@ -292,9 +350,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     std::cout << "  MC: Initializing domain" << std::endl;
  
     // Randomization setup
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<double> random_double(0.0f, 1.0f);
+    FastRNG rng(1);
 
     // Initializing domain skeleton
     int n_volumes = itot * jtot * ktot;
@@ -404,14 +460,11 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         if (INTRACELL_TECHNIQUE == "naive")
         {
 
-            std::uniform_int_distribution<> random_atm_idx(0, (n_volumes - 1));
-            std::uniform_int_distribution<> random_sfc_idx(0, (n_tiles - 1));
-
             // Atmosphere
             for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
             {
                 // Position
-                int idx_atm = random_atm_idx(gen);
+                int idx_atm = rng.uniform_int(n_volumes - 1);
                 arr_photons_atm_pos_idx[idx_photon] = idx_atm;
 
                 int jktot = ktot * jtot;
@@ -420,18 +473,18 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_atm_y  = idx_atm_2D / ktot;
                 int idx_atm_x  = idx_atm_2D % ktot;
 
-                double random_shift_x = random_double(gen) * dx;
-                double random_shift_y = random_double(gen) * dy;
-                double random_shift_z = random_double(gen) * arr_dz[idx_atm_z];
+                double random_shift_x = rng.uniform() * dx;
+                double random_shift_y = rng.uniform() * dy;
+                double random_shift_z = rng.uniform() * arr_dz[idx_atm_z];
 
                 arr_photons_atm_pos_x[idx_photon] = idx_atm_x * dx + random_shift_x;
                 arr_photons_atm_pos_y[idx_photon] = idx_atm_y * dy + random_shift_y;
                 arr_photons_atm_pos_z[idx_photon] = arr_zh[idx_atm_z] + random_shift_z;
 
                 // Angles and optical thickness
-                arr_photons_atm_mu[idx_photon]  = 2*random_double(gen) - 1;
-                arr_photons_atm_az[idx_photon]  = 2*cf::PI*random_double(gen);
-                arr_photons_atm_tau[idx_photon] = -logf(random_double(gen));
+                arr_photons_atm_mu[idx_photon]  = 2*rng.uniform() - 1;
+                arr_photons_atm_az[idx_photon]  = 2*cf::PI*rng.uniform();
+                arr_photons_atm_tau[idx_photon] = -logf(rng.uniform());
 
                 // Countint photons per gridcell
                 field_atm_photons_per_gridcell[idx_atm] += 1;
@@ -441,22 +494,22 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
             {
                 // Position
-                int idx_sfc = random_sfc_idx(gen);
+                int idx_sfc = rng.uniform_int(n_tiles - 1);
                 arr_photons_sfc_pos_idx[idx_photon] = idx_sfc;
 
                 int idx_sfc_y  = idx_sfc / ktot;
                 int idx_sfc_x  = idx_sfc % ktot;
 
-                double random_shift_x = random_double(gen) * dx;
-                double random_shift_y = random_double(gen) * dy;
+                double random_shift_x = rng.uniform() * dx;
+                double random_shift_y = rng.uniform() * dy;
 
                 arr_photons_sfc_pos_x[idx_photon] = idx_sfc_x * dx + random_shift_x;
                 arr_photons_sfc_pos_y[idx_photon] = idx_sfc_y * dy + random_shift_y;
 
                 // Angles and optical thickness
-                arr_photons_sfc_mu[idx_photon]  = std::sqrt(random_double(gen));
-                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*random_double(gen);
-                arr_photons_sfc_tau[idx_photon] = -logf(random_double(gen));
+                arr_photons_sfc_mu[idx_photon]  = std::sqrt(rng.uniform());
+                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*rng.uniform();
+                arr_photons_sfc_tau[idx_photon] = -logf(rng.uniform());
 
                 // Countint photons per gridcell
                 field_sfc_photons_per_gridcell[idx_sfc] += 1;
@@ -505,6 +558,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         {
             // Atmosphere
             // Generating weighted choice
+            std::cout << " Generating random atm..." << std::endl;
+
             std::vector<double> field_atm_weights(n_volumes);
             std::vector<int> field_atm_idx(n_volumes);
             double tot_phi_atm = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0f);
@@ -516,6 +571,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
             arr_photons_atm_pos_idx = random_choice(field_atm_idx, Natm, field_atm_weights);
 
+            std::cout << " Sampling atm..." << std::endl;
             for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
             {
                 // Position
@@ -527,22 +583,23 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_atm_y  = idx_atm_2D / ktot;
                 int idx_atm_x  = idx_atm_2D % ktot;
 
-                double random_shift_x = random_double(gen) * dx;
-                double random_shift_y = random_double(gen) * dy;
-                double random_shift_z = random_double(gen) * arr_dz[idx_atm_z];
+                double random_shift_x = rng.uniform() * dx;
+                double random_shift_y = rng.uniform() * dy;
+                double random_shift_z = rng.uniform() * arr_dz[idx_atm_z];
 
                 arr_photons_atm_pos_x[idx_photon] = idx_atm_x * dx + random_shift_x;
                 arr_photons_atm_pos_y[idx_photon] = idx_atm_y * dy + random_shift_y;
                 arr_photons_atm_pos_z[idx_photon] = arr_zh[idx_atm_z] + random_shift_z;
 
                 // Angles and optical thickness
-                arr_photons_atm_mu[idx_photon]  = 2*random_double(gen) - 1;
-                arr_photons_atm_az[idx_photon]  = 2*cf::PI*random_double(gen);
-                arr_photons_atm_tau[idx_photon] = -logf(random_double(gen));
+                arr_photons_atm_mu[idx_photon]  = 2*rng.uniform() - 1;
+                arr_photons_atm_az[idx_photon]  = 2*cf::PI*rng.uniform();
+                arr_photons_atm_tau[idx_photon] = -logf(rng.uniform());
 
                 // Countint photons per gridcell
                 field_atm_photons_per_gridcell[idx_atm] += 1;
             }
+            std::cout << " Generating random sfc..." << std::endl;
 
             std::vector<double> field_sfc_weights(n_tiles);
             std::vector<int> field_sfc_idx(n_tiles);
@@ -554,6 +611,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             }
 
             arr_photons_sfc_pos_idx = random_choice(field_sfc_idx, Nsfc, field_sfc_weights);
+            std::cout << " Sampling sfcy..." << std::endl;
 
             // Surface
             for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
@@ -564,16 +622,16 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_sfc_y  = idx_sfc / ktot;
                 int idx_sfc_x  = idx_sfc % ktot;
 
-                double random_shift_x = random_double(gen) * dx;
-                double random_shift_y = random_double(gen) * dy;
+                double random_shift_x = rng.uniform() * dx;
+                double random_shift_y = rng.uniform() * dy;
 
                 arr_photons_sfc_pos_x[idx_photon] = idx_sfc_x * dx + random_shift_x;
                 arr_photons_sfc_pos_y[idx_photon] = idx_sfc_y * dy + random_shift_y;
 
                 // Angles and optical thickness
-                arr_photons_sfc_mu[idx_photon]  = std::sqrt(random_double(gen));
-                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*random_double(gen);
-                arr_photons_sfc_tau[idx_photon] = -logf(random_double(gen));
+                arr_photons_sfc_mu[idx_photon]  = std::sqrt(rng.uniform());
+                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*rng.uniform();
+                arr_photons_sfc_tau[idx_photon] = -logf(rng.uniform());
 
                 // Countint photons per gridcell
                 field_sfc_photons_per_gridcell[idx_sfc] += 1;

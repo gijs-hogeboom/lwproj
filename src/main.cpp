@@ -52,7 +52,7 @@ int main()
         std::cout << "Start of program, reading input data" << std::endl;
 
         // Control variables
-        std::string CASE = "gpt3";                   // {gpt0, gpt1, gpt3, gpt21}
+        std::string CASE = "gpt21";                   // {gpt0, gpt1, gpt3, gpt21}
         bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
         bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
         double dx = 1e8;                               // [m]
