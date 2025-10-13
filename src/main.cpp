@@ -44,7 +44,7 @@ int main()
         
 
 
-    int my_photons = 25;
+    int my_photons = 20;
 
     
     for (int n_phot_pow = my_photons; n_phot_pow < (my_photons+1); n_phot_pow++)
@@ -60,7 +60,7 @@ int main()
         double dy = 1e8;                               // [m]
 
         int Nphot_pow = n_phot_pow;                            // Total 2^pow number of photons
-        std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, (power-gradient)}
+        std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, power-gradient}
         std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
 
         int N_mu = 100;                                // Number of angles to calculate at each height in PP-algorithm

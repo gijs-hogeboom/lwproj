@@ -64,7 +64,7 @@ struct FastRNG {
     inline double uniform() { return rng.next_double(); }
 
     inline int uniform_int(int max_exclusive) {
-        return static_cast<int>((rng.next() * (uint64_t)max_exclusive) >> 64);
+        return static_cast<int>(((unsigned __int128)rng.next() * (unsigned __int128)max_exclusive) >> 64);
     }
 };
 
@@ -501,7 +501,9 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                 // Countint photons per gridcell
                 field_atm_photons_per_gridcell[idx_atm] += 1;
+
             }
+
 
             // Surface
             for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
@@ -526,6 +528,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                 // Countint photons per gridcell
                 field_sfc_photons_per_gridcell[idx_sfc] += 1;
+                
+
             }
 
             // Calculating the power per photon for each cell in the field
@@ -535,7 +539,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             {
                 field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
             }
-            for (int idx_sfc = 0; idx_sfc < n_volumes; idx_sfc++)
+            for (int idx_sfc = 0; idx_sfc < n_tiles; idx_sfc++)
             {
                 field_sfc_phi_per_photon[idx_sfc] = field_sfc_phi[idx_sfc] / field_sfc_photons_per_gridcell[idx_sfc];
             }
@@ -552,6 +556,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_sfc = arr_photons_sfc_pos_idx[idx_photon];
                 arr_photons_sfc_phi[idx_photon] = field_sfc_phi_per_photon[idx_sfc];
             }
+
+            
 
 
 
@@ -699,7 +705,178 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     {
         if (INTRACELL_TECHNIQUE == "naive")
         {
-            ;
+            // Creating the power-gradient field (atmosphere)
+            std::vector<double> field_atm_phi_gradient(n_volumes);
+            for (size_t i = 0; i < itot; i++)
+            {
+                for (size_t j = 0; j < jtot; j++)
+                {
+                    for (size_t k = 0; k < ktot; k++)
+                    {
+
+                        size_t idx_atm = i*jtot*ktot + j*ktot + k;
+                        double center = field_atm_phi[idx_atm];
+                        double diffs = 0.;
+
+                        for (size_t iidx = 0; iidx < 27; iidx++)
+                        {
+                            int ii = i + iidx / 9 - 1;
+                            int jj = j + (iidx / 3) % 3 - 1;
+                            int kk = k + iidx % 3 - 1;
+
+                            if      (jj == -1)   {jj = jtot - 1;}
+                            else if (jj == jtot) {jj = 0;}
+                            if      (kk == -1)   {kk = ktot - 1;}
+                            else if (kk == ktot) {kk = 0;}
+
+                            if (ii == -1)
+                            {
+                                size_t idx_sfc = j*ktot + k;
+                                diffs += pow(center - field_sfc_phi[idx_sfc], 2);
+                            }
+                            else if (ii == itot)
+                            {
+                                diffs += pow(center,2);
+                            }
+                            else
+                            {
+                                size_t idx_atm_diffs = ii*jtot*ktot + jj*ktot + kk;
+                                diffs += pow(center - field_atm_phi[idx_atm_diffs], 2);
+                            }
+                        }
+
+                        field_atm_phi_gradient[idx_atm] = std::sqrt(diffs / 26.); // Taking the root mean of the differences (26 neighbors)
+
+                    }
+                }
+            }
+
+            // Surface (only gradient in z direction is considered important)
+            std::vector<double> field_sfc_phi_gradient(n_tiles);
+            for (size_t j = 0; j < jtot; j++)
+            {
+                for (size_t k = 0; k < ktot; k++)
+                {
+                    size_t idx = j*ktot + k;
+                    field_sfc_phi_gradient[idx] = std::abs((field_sfc_phi[idx] - field_atm_phi[idx])/arr_z[0]);
+                }
+            }
+
+
+            // Atmosphere
+            // Generating weighted choice
+            AliasTable alias_atm(field_atm_phi_gradient);
+
+            #pragma omp parallel
+            {
+                FastRNG rng_local(omp_get_thread_num() + std::chrono::high_resolution_clock::now().time_since_epoch().count());
+                #pragma omp for
+                for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
+                {
+
+                    // Position
+                    arr_photons_atm_pos_idx[idx_photon] = alias_atm.sample(rng_local);
+                    int idx_atm = arr_photons_atm_pos_idx[idx_photon];
+                                    
+                    int jktot = ktot * jtot;
+                    int idx_atm_z  = idx_atm / jktot;
+                    int idx_atm_2D = idx_atm % jktot;
+                    int idx_atm_y  = idx_atm_2D / ktot;
+                    int idx_atm_x  = idx_atm_2D % ktot;
+
+                    double random_shift_x = rng_local.uniform() * dx;
+                    double random_shift_y = rng_local.uniform() * dy;
+                    double random_shift_z = rng_local.uniform() * arr_dz[idx_atm_z];
+
+                    arr_photons_atm_pos_x[idx_photon] = idx_atm_x * dx + random_shift_x;
+                    arr_photons_atm_pos_y[idx_photon] = idx_atm_y * dy + random_shift_y;
+                    arr_photons_atm_pos_z[idx_photon] = arr_zh[idx_atm_z] + random_shift_z;
+
+                    // Angles and optical thickness
+                    arr_photons_atm_mu[idx_photon]  = 2*rng_local.uniform() - 1;
+                    arr_photons_atm_az[idx_photon]  = 2*cf::PI*rng_local.uniform();
+                    arr_photons_atm_tau[idx_photon] = -logf(rng_local.uniform());
+
+                    // Countint photons per gridcell
+                    #pragma omp atomic
+                    field_atm_photons_per_gridcell[idx_atm] += 1;
+                }
+            }
+            
+            // Surface
+            AliasTable alias_sfc(field_sfc_phi_gradient);
+            #pragma omp parallel
+            {
+                FastRNG rng_local(omp_get_thread_num() + std::chrono::high_resolution_clock::now().time_since_epoch().count());
+                #pragma omp for
+                for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+                {
+                    // Position
+                    arr_photons_sfc_pos_idx[idx_photon] = alias_sfc.sample(rng_local);
+                    int idx_sfc = arr_photons_sfc_pos_idx[idx_photon];
+
+                    int idx_sfc_y  = idx_sfc / ktot;
+                    int idx_sfc_x  = idx_sfc % ktot;
+
+                    double random_shift_x = rng_local.uniform() * dx;
+                    double random_shift_y = rng_local.uniform() * dy;
+
+                    arr_photons_sfc_pos_x[idx_photon] = idx_sfc_x * dx + random_shift_x;
+                    arr_photons_sfc_pos_y[idx_photon] = idx_sfc_y * dy + random_shift_y;
+
+                    // Angles and optical thickness
+                    arr_photons_sfc_mu[idx_photon]  = std::sqrt(rng_local.uniform());
+                    arr_photons_sfc_az[idx_photon]  = 2*cf::PI*rng_local.uniform();
+                    arr_photons_sfc_tau[idx_photon] = -logf(rng_local.uniform());
+
+                    // Countint photons per gridcell
+                    #pragma omp atomic
+                    field_sfc_photons_per_gridcell[idx_sfc] += 1;
+                }
+            }
+            
+
+
+            // Calculating the power per photon for each cell in the field
+            std::vector<float> field_atm_phi_per_photon(n_volumes);
+            std::vector<float> field_sfc_phi_per_photon(n_tiles);
+            for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
+            {
+                field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+            }
+            for (int idx_sfc = 0; idx_sfc < n_tiles; idx_sfc++)
+            {
+                field_sfc_phi_per_photon[idx_sfc] = field_sfc_phi[idx_sfc] / field_sfc_photons_per_gridcell[idx_sfc];
+            }
+
+
+            // Determining carrying power of each photon
+            for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
+            {
+                int idx_atm = arr_photons_atm_pos_idx[idx_photon];
+                arr_photons_atm_phi[idx_photon] = field_atm_phi_per_photon[idx_atm];
+            }
+            for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+            {
+                int idx_sfc = arr_photons_sfc_pos_idx[idx_photon];
+                arr_photons_sfc_phi[idx_photon] = field_sfc_phi_per_photon[idx_sfc];
+            }
+
+
+            // Compensating power per photon by making sure the sum of all photon's phi = total emitted phi
+            double sum_field_atm_phi = kahan_sum(field_atm_phi);
+            double sum_field_sfc_phi = kahan_sum(field_sfc_phi);
+            double sum_arr_photons_atm_phi = kahan_sum(arr_photons_atm_phi);
+            double sum_arr_photons_sfc_phi = kahan_sum(arr_photons_sfc_phi);
+            for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
+            {
+                arr_photons_atm_phi[idx_photon] *= (sum_field_atm_phi / sum_arr_photons_atm_phi);
+            }
+            for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+            {
+                arr_photons_sfc_phi[idx_photon] *= (sum_field_sfc_phi / sum_arr_photons_sfc_phi);
+            }
+
         } else
         if (INTRACELL_TECHNIQUE == "margin")
         {
@@ -783,16 +960,13 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        Nsfc,
                        1);
 
-
-    LOGvecCompare(field_sfc_absorbed, field_sfc_emitted);
-
+                       
     ///////////////// CALCULATING HEATING RATES /////////////////
 
     std::cout << "  MC: Calculating heating rates" << std::endl;
 
     std::vector<double> field_atm_heating_rates(n_volumes);
     std::vector<double> field_sfc_heating_rates(n_tiles);
-
     #pragma omp parallel for collapse(3)
     for (int i = 0; i < itot; i++)
     {
