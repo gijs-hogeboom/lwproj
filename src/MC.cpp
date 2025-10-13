@@ -290,7 +290,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
     ///////////////////// INITIALIZING DOMAIN /////////////////////// 
     std::cout << "  MC: Initializing domain" << std::endl;
-
+ 
     // Randomization setup
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -310,7 +310,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     std::vector<double> arr_y(jtot);
 
 
-
+    
     for (int j = 0; j < (jtot + 1); j++)
     {
         arr_yh[j] = j*dy;
@@ -578,7 +578,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 // Countint photons per gridcell
                 field_sfc_photons_per_gridcell[idx_sfc] += 1;
             }
-            
+
+
             // Calculating the power per photon for each cell in the field
             std::vector<float> field_atm_phi_per_photon(n_volumes);
             std::vector<float> field_sfc_phi_per_photon(n_tiles);
@@ -750,7 +751,6 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
 
-
     // MC energy balance
     // sfc_source          + atm_source          + TOA_source = sfc_sink                 + atm_sink                 + TOA_sink
     // field_sfc_phi.sum() + field_atm_phi.sum() + 0          = field_sfc_absorbed.sum() + field_atm_absorbed.sum() + TOA_absorbed
@@ -794,7 +794,6 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     EB_MC[4] = TOA_source;
     EB_MC[5] = TOA_sink;
     
-
 
     return field_atm_heating_rates;
 }
