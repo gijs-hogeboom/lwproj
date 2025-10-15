@@ -1,35 +1,6 @@
-#pragma once
-
 #include <vector>
 #include <string>
 
-void photon_propagation(const std::vector<int>& arr_photon_pos_idx,
-                        const std::vector<double>& arr_photon_pos_x,
-                        const std::vector<double>& arr_photon_pos_y,
-                        const std::vector<double>& arr_photon_pos_z,
-                        const std::vector<double>& arr_photon_mu,
-                        const std::vector<double>& arr_photon_az,
-                        const std::vector<double>& arr_photon_tau,
-                        const std::vector<double>& arr_power_per_photon,
-                        const std::vector<double>& field_kext,
-                        const std::vector<double>& arr_xh,
-                        const std::vector<double>& arr_yh,
-                        const std::vector<double>& arr_zh,
-                        const std::vector<double>& arr_x,
-                        const std::vector<double>& arr_y,
-                        const std::vector<double>& arr_z,
-                        std::vector<double>& field_absorbed_atm,
-                        std::vector<double>& field_absorbed_sfc,
-                        double x_max,
-                        double y_max,
-                        double z_max,
-                        int itot,
-                        int jtot,
-                        int ktot,
-                        double dx,
-                        double dy,
-                        int N,
-                        int domain_section);
 
 std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const std::vector<double>& arr_zh,
@@ -46,4 +17,5 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const std::string& INTRACELL_TECHNIQUE,
                           int Natm,
                           int Nsfc,
-                          std::vector<double>& EB_MC);
+                          bool print_EB,
+                          bool verbose);

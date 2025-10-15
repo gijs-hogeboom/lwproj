@@ -355,11 +355,15 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const std::string& INTRACELL_TECHNIQUE,
                           int Natm,
                           int Nsfc,
-                          std::vector<double>& EB_MC)
+                          bool print_EB,
+                          bool verbose)
 {
 
-    ///////////////////// INITIALIZING DOMAIN /////////////////////// 
-    std::cout << "  MC: Initializing domain" << std::endl;
+    ///////////////////// INITIALIZING DOMAIN ///////////////////////
+    if (verbose)
+    {
+        std::cout << "  MC: Initializing domain" << std::endl; 
+    }
  
     // Randomization setup
     FastRNG rng(std::chrono::high_resolution_clock::now().time_since_epoch().count());
@@ -440,8 +444,11 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     }
 
     /////////////////////////// SAMPLING /////////////////////////// 
-    std::cout << "  MC: Sampling" << std::endl;
-
+    
+    if (verbose)
+    {
+        std::cout << "  MC: Sampling" << std::endl;
+    }
     
     // Initializing photon arrays
     std::vector<int>   arr_photons_atm_pos_idx(Natm);
@@ -895,8 +902,10 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     // std::cout << "ATM: sum of photon power: " << kahan_sum(arr_photons_atm_phi) << std::endl;
 
     /////////////////////// PHOTON RELEASE /////////////////////// 
-    std::cout << "  MC: Photon release - atm" << std::endl;
-
+    if (verbose) 
+    {
+        std::cout << "  MC: Photon release - atm" << std::endl;
+    }
 
     // Photons from the atmosphere
     photon_propagation(arr_photons_atm_pos_idx,
@@ -928,8 +937,10 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        Natm,
                        0);
     
-    std::cout << "  MC: Photon release - sfc" << std::endl;
-
+    if (verbose)
+    {
+        std::cout << "  MC: Photon release - sfc" << std::endl;
+    }
     // Photons from the surface
     photon_propagation(arr_photons_sfc_pos_idx,
                        arr_photons_sfc_pos_x,
@@ -963,7 +974,10 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        
     ///////////////// CALCULATING HEATING RATES /////////////////
 
-    std::cout << "  MC: Calculating heating rates" << std::endl;
+    if (verbose)
+    {
+        std::cout << "  MC: Calculating heating rates" << std::endl;
+    }
 
     std::vector<double> field_atm_heating_rates(n_volumes);
     std::vector<double> field_sfc_heating_rates(n_tiles);
@@ -1007,33 +1021,30 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     double netto_phi_percentage = netto_phi/(sfc_source + atm_source + TOA_source) * 100.;
 
 
-    std::cout << "+++ MC ENERGY BALANCE ++++++++++++++" << std::endl;
-    std::cout << "+ -- source ------------------------" << std::endl;
-    std::cout << "+ sfc source:      " << sfc_source << std::endl;
-    std::cout << "+ atm source:      " << atm_source << std::endl;
-    std::cout << "+ TOA source:      " << TOA_source << std::endl;
-    std::cout << "+ -- sinks -------------------------" << std::endl;
-    std::cout << "+ sfc sink:        " << sfc_sink << std::endl;
-    std::cout << "+ atm sink:        " << atm_sink << std::endl;
-    std::cout << "+ TOA sink:        " << TOA_sink << std::endl;
-    std::cout << "+ -- net ---------------------------" << std::endl;
-    std::cout << "+ sfc net:         " << sfc_sink - sfc_source << std::endl;
-    std::cout << "+ atm net:         " << atm_sink - atm_source << std::endl;
-    std::cout << "+ TOA net:         " << TOA_sink - TOA_source << std::endl;
-    std::cout << "+ -- sums --------------------------" << std::endl;
-    std::cout << "+ sources:         " << sfc_source + atm_source + TOA_source << std::endl;
-    std::cout << "+ sinks:           " << sfc_sink + atm_sink + TOA_sink << std::endl;
-    std::cout << "+ sources - sinks: " << netto_phi << std::endl;
-    std::cout << "+ as percentage:   " << netto_phi_percentage << std::endl;
-    std::cout << "++++++++++++++++++++++++++++++++++++" << std::endl;
+    if (print_EB)
+    {
+        std::cout << "+++ MC ENERGY BALANCE ++++++++++++++" << std::endl;
+        std::cout << "+ -- source ------------------------" << std::endl;
+        std::cout << "+ sfc source:      " << sfc_source << std::endl;
+        std::cout << "+ atm source:      " << atm_source << std::endl;
+        std::cout << "+ TOA source:      " << TOA_source << std::endl;
+        std::cout << "+ -- sinks -------------------------" << std::endl;
+        std::cout << "+ sfc sink:        " << sfc_sink << std::endl;
+        std::cout << "+ atm sink:        " << atm_sink << std::endl;
+        std::cout << "+ TOA sink:        " << TOA_sink << std::endl;
+        std::cout << "+ -- net ---------------------------" << std::endl;
+        std::cout << "+ sfc net:         " << sfc_sink - sfc_source << std::endl;
+        std::cout << "+ atm net:         " << atm_sink - atm_source << std::endl;
+        std::cout << "+ TOA net:         " << TOA_sink - TOA_source << std::endl;
+        std::cout << "+ -- sums --------------------------" << std::endl;
+        std::cout << "+ sources:         " << sfc_source + atm_source + TOA_source << std::endl;
+        std::cout << "+ sinks:           " << sfc_sink + atm_sink + TOA_sink << std::endl;
+        std::cout << "+ sources - sinks: " << netto_phi << std::endl;
+        std::cout << "+ as percentage:   " << netto_phi_percentage << std::endl;
+        std::cout << "++++++++++++++++++++++++++++++++++++" << std::endl;
+    }
 
-    // Storing output
-    EB_MC[0] = sfc_source;
-    EB_MC[1] = sfc_sink;
-    EB_MC[2] = atm_source;
-    EB_MC[3] = atm_sink;
-    EB_MC[4] = TOA_source;
-    EB_MC[5] = TOA_sink;
+
     
 
     return field_atm_heating_rates;

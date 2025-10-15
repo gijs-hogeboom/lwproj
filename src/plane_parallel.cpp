@@ -150,11 +150,15 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
                                       const std::vector<double>& arr_Batmh,
                                       double Bsfc,
                                       int N_mu,
-                                      std::vector<double>& EB_PP)
+                                      bool print_EB,
+                                      bool verbose)
 {
 
     // Initializing domain
-    std::cout << "  PP: Initializing domain" << std::endl;
+    if (verbose)
+    {
+        std::cout << "  PP: Initializing domain" << std::endl;
+    }
 
     int itot  = arr_z.size();
     int itoth = arr_zh.size();
@@ -196,9 +200,6 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
 
 
     // Creating B(tau) function
-    LinearInterpTau B_tauh(arr_tauh, arr_Batmh);
-    auto f_B_tauh = [&](double tau) { return B_tauh(tau); };
-
     double tau_at_sfc = arr_tauh[0];
     double tau_at_TOA = arr_tauh[itoth-1];
 
@@ -212,85 +213,11 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     double ktot = 200.;
 
 
-    // // Calculating emission terms
-    // std::cout << "  PP: Calculating emission terms" << std::endl;
-
-    // std::vector<double> M_I_emission_uph(itoth*jtot*ktot);
-    // std::vector<double> M_I_emission_downh(itoth*jtot*ktot);
-
-    // std::vector<double> arr_dtau_uph(itoth);
-    // std::vector<double> arr_dtau_downh(itoth);
-    
-
-    // for (size_t i = 0; i < itoth; i++)
-    // {
-    //     // Loading tau
-    //     double tau = arr_tauh[i];
-
-    //     // Storing dtau at this level
-    //     arr_dtau_uph[i]   = (tau_at_sfc - tau)/(ktot-1);
-    //     arr_dtau_downh[i] = (tau - tau_at_TOA)/(ktot-1);
-
-    //     for (size_t j = 0; j < jtot; j++)
-    //     {
-    //         // Loading mu
-    //         double mu = arr_mu[j];
-    //         for (double k = 0.; k < ktot; k++)
-    //         {
-    //             int idx = i*jtot*ktot + j*ktot + k;
-
-    //             double tau_prime_up        = (k/(ktot-1)*tau        + (1 - k/(ktot-1))*tau_at_sfc);
-    //             double B_at_tau_prime_up   = f_B_tauh(tau_prime_up);
-    //             M_I_emission_uph[idx]     = I_upwards_emission(tau_prime_up, B_at_tau_prime_up, tau, mu);
-                
-    //             double tau_prime_down      = (k/(ktot-1)*tau_at_TOA + (1 - k/(ktot-1))*tau);
-    //             double B_at_tau_prime_down = f_B_tauh(tau_prime_down);
-    //             M_I_emission_downh[idx]   = I_downwards_emission(tau_prime_down, B_at_tau_prime_down, tau, mu);
-    //         }
-    //     }
-    // }
-
-
-    // // Calculating I(tau, mu)
-    // std::cout << "  PP: Calculating I(tau, mu)" << std::endl;
-
-    // std::vector<double> M_I_uph(itoth*jtot);
-    // std::vector<double> M_I_downh(itoth*jtot);
-
-    // for (size_t i = 0; i < itoth; i++)
-    // {
-    //     double tau = arr_tauh[i];
-    //     double dtau_up = arr_dtau_uph[i];
-    //     double dtau_down = arr_dtau_downh[i];
-    //     for (size_t j = 0; j < jtot; j++)
-    //     {
-    //         double mu = arr_mu[j];
-    //         int idx = i*jtot + j;
-    //         std::vector<double> I_uph_kaxis(ktot);
-    //         std::vector<double> I_downh_kaxis(ktot);
-    //         for (size_t k = 0; k < ktot; k++)
-    //         {
-    //             int idx_k = i*jtot*ktot + j*ktot + k;
-    //             I_uph_kaxis[k]   = M_I_emission_uph[idx_k];
-    //             I_downh_kaxis[k] = M_I_emission_downh[idx_k];
-    //         }
-
-    //         M_I_uph[idx] = I_complete(I_upwards_exctinction(tau, mu, I_at_sfc, tau_at_sfc),
-    //                                   I_uph_kaxis, 
-    //                                   dtau_up,
-    //                                   mu);
-    //         M_I_downh[idx] = I_complete(I_downwards_exctinction(tau, mu, I_at_TOA, tau_at_TOA),
-    //                                     I_downh_kaxis, 
-    //                                     dtau_down,
-    //                                     mu);
-        
-    //     }
-    // }
-
-
-
-    /// TEST ////////
-    std::cout << "  PP: Calculating I(tau, mu)" << std::endl;
+    // Calculating I(tau, mu)
+    if (verbose)
+    {
+        std::cout << "  PP: Calculating I(tau, mu)" << std::endl;
+    }
     std::vector<double> M_I_uph(itoth*jtot);
     std::vector<double> M_I_downh(itoth*jtot);
 
@@ -330,7 +257,10 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
 
 
     // Calculating F(z)
-    std::cout << "  PP: Calculating F(z)" << std::endl;
+    if (verbose)
+    {
+        std::cout << "  PP: Calculating F(z)" << std::endl;
+    }
 
     std::vector<double> arr_F_uph(itoth);
     std::vector<double> arr_F_downh(itoth);
@@ -364,7 +294,10 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     // LOGvec(arr_F_downh, "F down", true);
 
     // Calculating heating rates at each cell
-    std::cout << "  PP: Calculating heating rates" << std::endl;
+    if (verbose)
+    {
+        std::cout << "  PP: Calculating heating rates" << std::endl;
+    }
     
     std::vector<double> arr_heating_rates(itot);
     for (size_t i = 0; i < itot; i++)
@@ -386,35 +319,29 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     double netto_phi_percentage = netto_phi/(sfc_source + TOA_source) * 100.;
 
 
-    std::cout << "+++ PP ENERGY BALANCE ++++++++++++++" << std::endl;
-    std::cout << "+ -- source ------------------------" << std::endl;
-    std::cout << "+ sfc source:      " << sfc_source << std::endl;
-    std::cout << "+ atm source:      -" << std::endl;
-    std::cout << "+ TOA source:      " << TOA_source << std::endl;
-    std::cout << "+ -- sinks -------------------------" << std::endl;
-    std::cout << "+ sfc sink:        " << sfc_sink << std::endl;
-    std::cout << "+ atm sink:        -" << std::endl;
-    std::cout << "+ TOA sink:        " << TOA_sink << std::endl;
-    std::cout << "+ -- net ---------------------------" << std::endl;
-    std::cout << "+ sfc net:         " << sfc_sink - sfc_source << std::endl;
-    std::cout << "+ atm net:         " << atm_netto << std::endl;
-    std::cout << "+ TOA net:         " << TOA_sink - TOA_source << std::endl;
-    std::cout << "+ -- sums --------------------------" << std::endl;
-    std::cout << "+ sources:          unknown" << std::endl;
-    std::cout << "+ sinks:            unknown" << std::endl;
-    std::cout << "+ sources - sinks: " << netto_phi << std::endl;
-    std::cout << "+ as percentage:   " << netto_phi_percentage << std::endl;
-    std::cout << "++++++++++++++++++++++++++++++++++++" << std::endl;
+    if (print_EB)
+    {
+        std::cout << "+++ PP ENERGY BALANCE ++++++++++++++" << std::endl;
+        std::cout << "+ -- source ------------------------" << std::endl;
+        std::cout << "+ sfc source:      " << sfc_source << std::endl;
+        std::cout << "+ atm source:      -" << std::endl;
+        std::cout << "+ TOA source:      " << TOA_source << std::endl;
+        std::cout << "+ -- sinks -------------------------" << std::endl;
+        std::cout << "+ sfc sink:        " << sfc_sink << std::endl;
+        std::cout << "+ atm sink:        -" << std::endl;
+        std::cout << "+ TOA sink:        " << TOA_sink << std::endl;
+        std::cout << "+ -- net ---------------------------" << std::endl;
+        std::cout << "+ sfc net:         " << sfc_sink - sfc_source << std::endl;
+        std::cout << "+ atm net:         " << atm_netto << std::endl;
+        std::cout << "+ TOA net:         " << TOA_sink - TOA_source << std::endl;
+        std::cout << "+ -- sums --------------------------" << std::endl;
+        std::cout << "+ sources:          unknown" << std::endl;
+        std::cout << "+ sinks:            unknown" << std::endl;
+        std::cout << "+ sources - sinks: " << netto_phi << std::endl;
+        std::cout << "+ as percentage:   " << netto_phi_percentage << std::endl;
+        std::cout << "++++++++++++++++++++++++++++++++++++" << std::endl;
+    }
 
-
-
-
-    // Storing output
-    EB_PP[0] = sfc_source;
-    EB_PP[1] = sfc_sink;
-    EB_PP[2] = atm_netto;
-    EB_PP[3] = TOA_source;
-    EB_PP[4] = TOA_sink;
 
     return arr_heating_rates;
 }
