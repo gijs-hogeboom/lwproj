@@ -2,14 +2,14 @@
 #include <string>
 
 
-std::vector<double> run_MC(const std::vector<double>& arr_z,
-                          const std::vector<double>& arr_zh,
-                          const std::vector<double>& arr_dz,
-                          const std::vector<double>& arr_kext,
-                          const std::vector<double>& arr_Batm,
-                          double Bsfc,
-                          double dx,
-                          double dy,
+std::vector<float> run_MC(const std::vector<float>& arr_z,
+                          const std::vector<float>& arr_zh,
+                          const std::vector<float>& arr_dz,
+                          const std::vector<float>& arr_kext,
+                          const std::vector<float>& arr_Batm,
+                          float Bsfc,
+                          float dx,
+                          float dy,
                           int ktot,
                           int jtot,
                           int itot,

@@ -29,15 +29,15 @@ int main()
     }
 
 
-    std::vector<int> arr_photonpows = {24};
+    std::vector<int> arr_photonpows = {21};
 
 
     // Control variables
     std::string CASE = "gpt21";                   // {gpt0, gpt1, gpt3, gpt21}
     bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
-    double dx = 1e8;                               // [m]
-    double dy = 1e8;                               // [m]
+    float dx = 1e8;                               // [m]
+    float dy = 1e8;                               // [m]
 
     std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, power-gradient}
     std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
@@ -72,15 +72,15 @@ int main()
     nlohmann::json j;
     file_MVcases >> j;
 
-    std::vector<double> arr_z = j["z_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_zh = j["zh_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_dz = j["dz_" + CASE].get<std::vector<double>>();
+    std::vector<float> arr_z = j["z_" + CASE].get<std::vector<float>>();
+    std::vector<float> arr_zh = j["zh_" + CASE].get<std::vector<float>>();
+    std::vector<float> arr_dz = j["dz_" + CASE].get<std::vector<float>>();
 
-    std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_Batmh = j["Batmh_" + CASE].get<std::vector<double>>();
+    std::vector<float> arr_kext = j["kext_" + CASE].get<std::vector<float>>();
+    std::vector<float> arr_Batm = j["Batm_" + CASE].get<std::vector<float>>();
+    std::vector<float> arr_Batmh = j["Batmh_" + CASE].get<std::vector<float>>();
 
-    double Bsfc = j["Bsfc_" + CASE].get<double>();
+    float Bsfc = j["Bsfc_" + CASE].get<float>();
 
 
 
@@ -113,14 +113,14 @@ int main()
         // Header
         foutMetrics << "z,RMSE,ME" << std::endl;
 
-        std::vector<double> arr_RMSE(itot);
-        std::vector<double> arr_ME(itot);
+        std::vector<float> arr_RMSE(itot);
+        std::vector<float> arr_ME(itot);
 
         for (int _iter = 0; _iter < Niter; _iter++)
         {
             
-            std::vector<double> heating_rates_MC(itot);
-            std::vector<double> heating_rates_PP(itot);
+            std::vector<float> heating_rates_MC(itot);
+            std::vector<float> heating_rates_PP(itot);
 
             auto MC_t1 = std::chrono::high_resolution_clock::now();
             if (ENABLE_MC)
@@ -202,13 +202,13 @@ int main()
             auto PP_t2 = std::chrono::high_resolution_clock::now();
 
 
-            duration<double, std::milli> MC_time = MC_t2 - MC_t1;
-            duration<double, std::milli> PP_time = PP_t2 - PP_t1;
+            duration<float, std::milli> MC_time = MC_t2 - MC_t1;
+            duration<float, std::milli> PP_time = PP_t2 - PP_t1;
             
             // Loading results
-            std::vector<double> heating_rates_PP_in(itot, 0.);
-            std::vector<double> heating_rates_MC_in(itot, 0.);
-            std::vector<double> arr_z_in(itot, 0.);
+            std::vector<float> heating_rates_PP_in(itot, 0.);
+            std::vector<float> heating_rates_MC_in(itot, 0.);
+            std::vector<float> arr_z_in(itot, 0.);
 
             std::fstream file_MCinput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
             std::fstream file_PPinput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_PP_" + CASE + ".csv");
@@ -265,7 +265,7 @@ int main()
 
 
             ////////////// Calculating metrics ///////////////////////
-            double RMSE_tot, ME_tot;
+            float RMSE_tot, ME_tot;
 
             for (size_t i = 0; i < itot; i++)
             {
@@ -290,7 +290,7 @@ int main()
             {
                 Gnuplot gp;
 
-                std::vector<std::pair<double,double>> hr_1D, hr_3D;
+                std::vector<std::pair<float,float>> hr_1D, hr_3D;
                 for (int i = 0; i < itot; i++)
                 {
                     hr_1D.emplace_back(heating_rates_PP_in[i], arr_z_in[i]);

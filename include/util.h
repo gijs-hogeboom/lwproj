@@ -145,6 +145,11 @@ struct Xoshiro256ss {
         return (next() >> 11) * (1.0 / 9007199254740992.0);
     }
 
+    inline float next_float() {
+        // Take upper 24 bits of next() and convert to float in [0,1)
+        return (next() >> 40) * (1.0 / 16777216.0);
+    }
+
 private:
     static inline uint64_t rotl(const uint64_t x, int k) {
         return (x << k) | (x >> (64 - k));
@@ -164,12 +169,12 @@ struct FastRNG {
 };
 
 
-struct AliasTable {
+struct AliasTable_double {
     std::vector<double> prob;
     std::vector<int> alias;
     int n;
 
-    AliasTable(const std::vector<double>& weights) {
+    AliasTable_double(const std::vector<double>& weights) {
         n = weights.size();
         prob.resize(n);
         alias.resize(n);
@@ -198,6 +203,45 @@ struct AliasTable {
     inline int sample(FastRNG& rng) const {
         int i = rng.rng.next() % n;
         double r = rng.rng.next_double();
+        return (r < prob[i]) ? i : alias[i];
+    }
+};
+
+
+struct AliasTable_float {
+    std::vector<float> prob;
+    std::vector<int> alias;
+    int n;
+
+    AliasTable_float(const std::vector<float>& weights) {
+        n = weights.size();
+        prob.resize(n);
+        alias.resize(n);
+
+        std::vector<float> scaled(weights);
+        float sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
+        for (auto& w : scaled) w *= n / sum;
+
+        std::queue<int> small, large;
+        for (int i = 0; i < n; ++i)
+            (scaled[i] < 1.0 ? small : large).push(i);
+
+        while (!small.empty() && !large.empty()) {
+            int s = small.front(); small.pop();
+            int l = large.front(); large.pop();
+            prob[s] = scaled[s];
+            alias[s] = l;
+            scaled[l] = scaled[l] + scaled[s] - 1.0;
+            (scaled[l] < 1.0 ? small : large).push(l);
+        }
+
+        while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
+        while (!small.empty()) { prob[small.front()] = 1.0; small.pop(); }
+    }
+
+    inline int sample(FastRNG& rng) const {
+        int i = rng.rng.next() % n;
+        float r = rng.rng.next_float();
         return (r < prob[i]) ? i : alias[i];
     }
 };
