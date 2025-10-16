@@ -279,8 +279,8 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
             arr_Imu_uph[j]   = M_I_uph[idx]*mu;
             arr_Imu_downh[j] = M_I_downh[idx]*mu;
         }
-        arr_F_uph[i]   = 2*cf::PI*trapezoid(arr_mu, arr_Imu_uph);
-        arr_F_downh[i] = 2*cf::PI*trapezoid(arr_mu, arr_Imu_downh);
+        arr_F_uph[i]   = 2*cdouble::PI*trapezoid(arr_mu, arr_Imu_uph);
+        arr_F_downh[i] = 2*cdouble::PI*trapezoid(arr_mu, arr_Imu_downh);
     }
 
     // Calculating net flux at each cell
@@ -302,13 +302,13 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     std::vector<double> arr_heating_rates(itot);
     for (size_t i = 0; i < itot; i++)
     {
-        arr_heating_rates[i] = 1 / (cf::RHO * cf::CP * arr_dz[i]) * arr_F_net[i] * 86400;
+        arr_heating_rates[i] = 1 / (cdouble::RHO * cdouble::CP * arr_dz[i]) * arr_F_net[i] * 86400;
     }
     // PP energy balance
     // sfc_source          + TOA_source                       = sfc_sink                 + TOA_sink                 + atm_netto
     // pi*I_at_sfc         + 0                                = F_downh[0]               + F_uph[-1]                + F_net.sum()
 
-    double sfc_source = cf::PI * I_at_sfc;
+    double sfc_source = cdouble::PI * I_at_sfc;
     double sfc_sink   = arr_F_downh[0];
     double atm_netto  = kahan_sum(arr_F_net);
     double TOA_source = 0.;

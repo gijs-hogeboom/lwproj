@@ -29,7 +29,7 @@ int main()
     }
 
 
-    std::vector<int> arr_photonpows = {1};
+    std::vector<int> arr_photonpows = {24};
 
 
     // Control variables
@@ -39,7 +39,7 @@ int main()
     double dx = 1e8;                               // [m]
     double dy = 1e8;                               // [m]
 
-    std::string INTERCELL_TECHNIQUE = "power-gradient";  // {uniform, power, power-gradient}
+    std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, power-gradient}
     std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
 
     int N_mu = 100;                                // Number of angles to calculate at each height in PP-algorithm
@@ -50,10 +50,10 @@ int main()
     // Console output params
     bool print_EB_MC         = true;
     bool print_EB_PP         = false;
-    bool verbose             = false;
+    bool verbose             = true;
     bool print_final_results = true;
     bool print_counter       = false;
-    bool plot_results        = false;
+    bool plot_results        = true;
 
 
     if (verbose)

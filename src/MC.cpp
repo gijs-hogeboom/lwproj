@@ -8,107 +8,10 @@
 #include <string>
 #include <numeric>
 #include <algorithm>
-#include <cstdint>
-#include <queue>
 #include <omp.h>
 #include <chrono>
 
 #include "util.h"
-
-
-
-
-struct Xoshiro256ss {
-    uint64_t s[4];
-
-    Xoshiro256ss(uint64_t seed = 1) {
-        // SplitMix64 to initialize the state
-        uint64_t z = seed + 0x9e3779b97f4a7c15ULL;
-        for (int i = 0; i < 4; ++i) {
-            z ^= (z >> 30); z *= 0xbf58476d1ce4e5b9ULL;
-            z ^= (z >> 27); z *= 0x94d049bb133111ebULL;
-            z ^= (z >> 31);
-            s[i] = z;
-            z += 0x9e3779b97f4a7c15ULL;
-        }
-    }
-
-    inline uint64_t next() {
-        const uint64_t result = rotl(s[1] * 5, 7) * 9;
-        const uint64_t t = s[1] << 17;
-        s[2] ^= s[0];
-        s[3] ^= s[1];
-        s[1] ^= s[2];
-        s[0] ^= s[3];
-        s[2] ^= t;
-        s[3] = rotl(s[3], 45);
-        return result;
-    }
-
-    inline double next_double() {
-        // Take upper 53 bits of next() and convert to double in [0,1)
-        return (next() >> 11) * (1.0 / 9007199254740992.0);
-    }
-
-private:
-    static inline uint64_t rotl(const uint64_t x, int k) {
-        return (x << k) | (x >> (64 - k));
-    }
-};
-
-
-struct FastRNG {
-    Xoshiro256ss rng;
-    FastRNG(uint64_t seed) : rng(seed) {}
-
-    inline double uniform() { return rng.next_double(); }
-
-    inline int uniform_int(int max_exclusive) {
-        return static_cast<int>(((unsigned __int128)rng.next() * (unsigned __int128)max_exclusive) >> 64);
-    }
-};
-
-
-struct AliasTable {
-    std::vector<double> prob;
-    std::vector<int> alias;
-    int n;
-
-    AliasTable(const std::vector<double>& weights) {
-        n = weights.size();
-        prob.resize(n);
-        alias.resize(n);
-
-        std::vector<double> scaled(weights);
-        double sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
-        for (auto& w : scaled) w *= n / sum;
-
-        std::queue<int> small, large;
-        for (int i = 0; i < n; ++i)
-            (scaled[i] < 1.0 ? small : large).push(i);
-
-        while (!small.empty() && !large.empty()) {
-            int s = small.front(); small.pop();
-            int l = large.front(); large.pop();
-            prob[s] = scaled[s];
-            alias[s] = l;
-            scaled[l] = scaled[l] + scaled[s] - 1.0;
-            (scaled[l] < 1.0 ? small : large).push(l);
-        }
-
-        while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
-        while (!small.empty()) { prob[small.front()] = 1.0; small.pop(); }
-    }
-
-    inline int sample(FastRNG& rng) const {
-        int i = rng.rng.next() % n;
-        double r = rng.rng.next_double();
-        return (r < prob[i]) ? i : alias[i];
-    }
-};
-
-
-
 
 
 
@@ -131,6 +34,7 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                         std::vector<double>& field_atm_absorbed,
                         std::vector<double>& field_sfc_absorbed,
                         double& TOA_absorbed,
+                        double& tot_error,
                         double x_max,
                         double y_max,
                         double z_max,
@@ -144,6 +48,7 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 {
     const double eps = 1e-5;
     const int jktot = jtot * ktot;
+
 
     // #pragma omp for schedule(dynamic)
     for (int idx_photon = 0; idx_photon < N; idx_photon++)
@@ -159,9 +64,9 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
         double tau    = arr_photons_tau[idx_photon];
 
         // Calculating cartesian direction vector
-        double s = sqrt(1 - mu*mu);
-        double dx = s*cos(az);
-        double dy = s*sin(az);
+        double s = std::sqrt(1 - mu*mu);
+        double dx = s*std::cos(az);
+        double dy = s*std::sin(az);
         double dz = mu;
 
 
@@ -239,6 +144,8 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 
                 // #pragma omp atomic
                 TOA_absorbed += arr_photons_phi[idx_photon];
+
+                tot_error += estimate_max_numerical_double_error(TOA_absorbed);
                 break;
             }
             bool at_surface        = (std::abs(z) < eps);
@@ -250,6 +157,8 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 
                 // #pragma omp atomic
                 field_sfc_absorbed[idx_sfc] += arr_photons_phi[idx_photon];
+
+                tot_error += estimate_max_numerical_double_error(field_sfc_absorbed[idx_sfc]);
                 break;
             }
 
@@ -334,6 +243,8 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 
                 // #pragma omp atomic
                 field_atm_absorbed[idx_flat] += arr_photons_phi[idx_photon];
+
+                tot_error += estimate_max_numerical_double_error(field_atm_absorbed[idx_flat]);
             }
         }
     }
@@ -427,7 +338,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                 field_atm_kext[idx_atm] = current_kext;
                 field_atm_B[idx_atm] = current_Batm;
-                field_atm_phi[idx_atm] = 4*cf::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
+                field_atm_phi[idx_atm] = 4*cdouble::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
                 
                 field_atm_emitted[idx_atm] = field_atm_phi[idx_atm]; // basically copying the power array
 
@@ -435,7 +346,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 {
                     int idx_sfc = j * ktot + k;
                     field_sfc_B[idx_sfc] = Bsfc;
-                    field_sfc_phi[idx_sfc] = cf::PI * field_sfc_eps[idx_sfc] * Bsfc * dx * dy;
+                    field_sfc_phi[idx_sfc] = cdouble::PI * field_sfc_eps[idx_sfc] * Bsfc * dx * dy;
 
                     field_sfc_emitted[idx_sfc] = field_sfc_phi[idx_sfc]; // idem
                 }
@@ -503,8 +414,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                 // Angles and optical thickness
                 arr_photons_atm_mu[idx_photon]  = 2*rng.uniform() - 1;
-                arr_photons_atm_az[idx_photon]  = 2*cf::PI*rng.uniform();
-                arr_photons_atm_tau[idx_photon] = -logf(rng.uniform());
+                arr_photons_atm_az[idx_photon]  = 2*cdouble::PI*rng.uniform();
+                arr_photons_atm_tau[idx_photon] = -std::log(rng.uniform());
 
                 // Countint photons per gridcell
                 field_atm_photons_per_gridcell[idx_atm] += 1;
@@ -530,8 +441,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                 // Angles and optical thickness
                 arr_photons_sfc_mu[idx_photon]  = std::sqrt(rng.uniform());
-                arr_photons_sfc_az[idx_photon]  = 2*cf::PI*rng.uniform();
-                arr_photons_sfc_tau[idx_photon] = -logf(rng.uniform());
+                arr_photons_sfc_az[idx_photon]  = 2*cdouble::PI*rng.uniform();
+                arr_photons_sfc_tau[idx_photon] = -std::log(rng.uniform());
 
                 // Countint photons per gridcell
                 field_sfc_photons_per_gridcell[idx_sfc] += 1;
@@ -540,8 +451,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             }
 
             // Calculating the power per photon for each cell in the field
-            std::vector<float> field_atm_phi_per_photon(n_volumes);
-            std::vector<float> field_sfc_phi_per_photon(n_tiles);
+            std::vector<double> field_atm_phi_per_photon(n_volumes);
+            std::vector<double> field_sfc_phi_per_photon(n_tiles);
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
                 field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
@@ -564,6 +475,20 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 arr_photons_sfc_phi[idx_photon] = field_sfc_phi_per_photon[idx_sfc];
             }
 
+
+            // Compensating power per photon by making sure the sum of all photon's phi = total emitted phi
+            double sum_field_atm_phi = kahan_sum(field_atm_phi);
+            double sum_field_sfc_phi = kahan_sum(field_sfc_phi);
+            double sum_arr_photons_atm_phi = kahan_sum(arr_photons_atm_phi);
+            double sum_arr_photons_sfc_phi = kahan_sum(arr_photons_sfc_phi);
+            for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
+            {
+                arr_photons_atm_phi[idx_photon] *= (sum_field_atm_phi / sum_arr_photons_atm_phi);
+            }
+            for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
+            {
+                arr_photons_sfc_phi[idx_photon] *= (sum_field_sfc_phi / sum_arr_photons_sfc_phi);
+            }
             
 
 
@@ -614,8 +539,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                     // Angles and optical thickness
                     arr_photons_atm_mu[idx_photon]  = 2*rng_local.uniform() - 1;
-                    arr_photons_atm_az[idx_photon]  = 2*cf::PI*rng_local.uniform();
-                    arr_photons_atm_tau[idx_photon] = -logf(rng_local.uniform());
+                    arr_photons_atm_az[idx_photon]  = 2*cdouble::PI*rng_local.uniform();
+                    arr_photons_atm_tau[idx_photon] = -std::log(rng_local.uniform());
 
                     // Countint photons per gridcell
                     #pragma omp atomic
@@ -646,8 +571,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                     // Angles and optical thickness
                     arr_photons_sfc_mu[idx_photon]  = std::sqrt(rng_local.uniform());
-                    arr_photons_sfc_az[idx_photon]  = 2*cf::PI*rng_local.uniform();
-                    arr_photons_sfc_tau[idx_photon] = -logf(rng_local.uniform());
+                    arr_photons_sfc_az[idx_photon]  = 2*cdouble::PI*rng_local.uniform();
+                    arr_photons_sfc_tau[idx_photon] = -std::log(rng_local.uniform());
 
                     // Countint photons per gridcell
                     #pragma omp atomic
@@ -658,8 +583,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
             // Calculating the power per photon for each cell in the field
-            std::vector<float> field_atm_phi_per_photon(n_volumes);
-            std::vector<float> field_sfc_phi_per_photon(n_tiles);
+            std::vector<double> field_atm_phi_per_photon(n_volumes);
+            std::vector<double> field_sfc_phi_per_photon(n_tiles);
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
                 field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
@@ -801,8 +726,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                     // Angles and optical thickness
                     arr_photons_atm_mu[idx_photon]  = 2*rng_local.uniform() - 1;
-                    arr_photons_atm_az[idx_photon]  = 2*cf::PI*rng_local.uniform();
-                    arr_photons_atm_tau[idx_photon] = -logf(rng_local.uniform());
+                    arr_photons_atm_az[idx_photon]  = 2*cdouble::PI*rng_local.uniform();
+                    arr_photons_atm_tau[idx_photon] = -std::log(rng_local.uniform());
 
                     // Countint photons per gridcell
                     #pragma omp atomic
@@ -833,8 +758,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
                     // Angles and optical thickness
                     arr_photons_sfc_mu[idx_photon]  = std::sqrt(rng_local.uniform());
-                    arr_photons_sfc_az[idx_photon]  = 2*cf::PI*rng_local.uniform();
-                    arr_photons_sfc_tau[idx_photon] = -logf(rng_local.uniform());
+                    arr_photons_sfc_az[idx_photon]  = 2*cdouble::PI*rng_local.uniform();
+                    arr_photons_sfc_tau[idx_photon] = -std::log(rng_local.uniform());
 
                     // Countint photons per gridcell
                     #pragma omp atomic
@@ -845,8 +770,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
             // Calculating the power per photon for each cell in the field
-            std::vector<float> field_atm_phi_per_photon(n_volumes);
-            std::vector<float> field_sfc_phi_per_photon(n_tiles);
+            std::vector<double> field_atm_phi_per_photon(n_volumes);
+            std::vector<double> field_sfc_phi_per_photon(n_tiles);
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
                 field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
@@ -907,6 +832,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         std::cout << "  MC: Photon release - atm" << std::endl;
     }
 
+    double tot_error = 0.;
+
     // Photons from the atmosphere
     photon_propagation(arr_photons_atm_pos_idx,
                        arr_photons_atm_pos_x,
@@ -926,6 +853,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        field_atm_absorbed,
                        field_sfc_absorbed,
                        TOA_absorbed,
+                       tot_error,
                        x_max,
                        y_max,
                        z_max,
@@ -960,6 +888,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        field_atm_absorbed,
                        field_sfc_absorbed,
                        TOA_absorbed,
+                       tot_error,
                        x_max,
                        y_max,
                        z_max,
@@ -971,6 +900,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        Nsfc,
                        1);
 
+
+    std::cout << "[][][][][] Estimation of max numerical error: " << tot_error/(dx*dy) << std::endl;
                        
     ///////////////// CALCULATING HEATING RATES /////////////////
 
@@ -991,13 +922,13 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_atm =  i * ktot * jtot + j * ktot + k;
                 double atm_net_phi = field_atm_absorbed[idx_atm] - field_atm_emitted[idx_atm];
                 double dz = arr_dz[i];
-                field_atm_heating_rates[idx_atm] = atm_net_phi / (cf::RHO * cf::CP * dx * dy * dz) * 86400;
+                field_atm_heating_rates[idx_atm] = atm_net_phi / (cdouble::RHO * cdouble::CP * dx * dy * dz) * 86400;
 
                 if (i == 0)
                 {
                     int idx_sfc = j * ktot + k;
                     double sfc_net_phi = field_sfc_absorbed[idx_sfc] - field_sfc_emitted[idx_sfc];
-                    field_sfc_heating_rates[idx_sfc] = sfc_net_phi / (cf::RHO * cf::CP * dx * dy) * 86400;
+                    field_sfc_heating_rates[idx_sfc] = sfc_net_phi / (cdouble::RHO * cdouble::CP * dx * dy) * 86400;
                 }
             }
         }
