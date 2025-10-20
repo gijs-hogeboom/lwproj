@@ -29,22 +29,21 @@ int main()
     }
 
 
-    std::vector<int> arr_photonpows = {21};
+    std::vector<int> arr_photonpows = {22};
 
 
     // Control variables
     std::string CASE = "gpt21";                   // {gpt0, gpt1, gpt3, gpt21}
     bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
-    float dx = 1e8;                               // [m]
-    float dy = 1e8;                               // [m]
+    double dx = 1e4;                              // [m]
+    double dy = 1e4;                              // [m]
 
-    std::string INTERCELL_TECHNIQUE = "power";  // {uniform, power, power-gradient}
+    std::string INTERCELL_TECHNIQUE = "power";    // {uniform, power, power-gradient}
     std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
 
     int N_mu = 100;                                // Number of angles to calculate at each height in PP-algorithm
 
-    int Niter = 1;                                // Number of experiments for the RMSE/ME metrics
 
 
     // Console output params
@@ -72,15 +71,15 @@ int main()
     nlohmann::json j;
     file_MVcases >> j;
 
-    std::vector<float> arr_z = j["z_" + CASE].get<std::vector<float>>();
-    std::vector<float> arr_zh = j["zh_" + CASE].get<std::vector<float>>();
-    std::vector<float> arr_dz = j["dz_" + CASE].get<std::vector<float>>();
+    std::vector<double> arr_z = j["z_" + CASE].get<std::vector<double>>();
+    std::vector<double> arr_zh = j["zh_" + CASE].get<std::vector<double>>();
+    std::vector<double> arr_dz = j["dz_" + CASE].get<std::vector<double>>();
 
-    std::vector<float> arr_kext = j["kext_" + CASE].get<std::vector<float>>();
-    std::vector<float> arr_Batm = j["Batm_" + CASE].get<std::vector<float>>();
-    std::vector<float> arr_Batmh = j["Batmh_" + CASE].get<std::vector<float>>();
+    std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
+    std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
+    std::vector<double> arr_Batmh = j["Batmh_" + CASE].get<std::vector<double>>();
 
-    float Bsfc = j["Bsfc_" + CASE].get<float>();
+    double Bsfc = j["Bsfc_" + CASE].get<double>();
 
 
 
@@ -89,18 +88,27 @@ int main()
     for (auto n_phot_pow : arr_photonpows)
     {
 
+
+
         // General initializations
-        int Nphot_pow = n_phot_pow;                            // Total 2^pow number of photons
-        int Nphot    = pow(2, Nphot_pow);
-        int Natm_pow = Nphot_pow - 1; // splitting total amount in half
-        int Nsfc_pow = Nphot_pow - 1;
-        int Natm     = pow(2, Natm_pow);
-        int Nsfc     = pow(2, Nsfc_pow);
+        // int dNphot    = std::max({0, n_phot_pow - 20});
+        // int Niter     = pow(2, dNphot);                                // Number of experiments for the RMSE/ME metrics
+
+        // int Nphot_pow = n_phot_pow - dNphot;                            // Total 2^pow number of photons
+
+        int Niter     = 1;
+        int Nphot_pow = n_phot_pow;
+
+        int Nphot     = pow(2, Nphot_pow);
+        int Natm_pow  = Nphot_pow - 1; // splitting total amount in half
+        int Nsfc_pow  = Nphot_pow - 1;
+        int Natm      = pow(2, Natm_pow);
+        int Nsfc      = pow(2, Nsfc_pow);
 
 
-        int itot     = arr_z.size();
-        int jtot     = 1;
-        int ktot     = 1;
+        int itot      = arr_z.size();
+        int jtot      = 1;
+        int ktot      = 1;
 
         std::string fnameMetrics = "metrics_" + CASE + "_" + INTERCELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow);
         std::ofstream foutMetrics("/home/gijs-hogeboom/dev/lwproj/data_output/metrics_profiles/" + fnameMetrics + ".csv");
@@ -113,14 +121,14 @@ int main()
         // Header
         foutMetrics << "z,RMSE,ME" << std::endl;
 
-        std::vector<float> arr_RMSE(itot);
-        std::vector<float> arr_ME(itot);
+        std::vector<double> arr_RMSE(itot);
+        std::vector<double> arr_ME(itot);
 
         for (int _iter = 0; _iter < Niter; _iter++)
         {
             
-            std::vector<float> heating_rates_MC(itot);
-            std::vector<float> heating_rates_PP(itot);
+            std::vector<double> heating_rates_MC(itot);
+            std::vector<double> heating_rates_PP(itot);
 
             auto MC_t1 = std::chrono::high_resolution_clock::now();
             if (ENABLE_MC)
@@ -202,13 +210,13 @@ int main()
             auto PP_t2 = std::chrono::high_resolution_clock::now();
 
 
-            duration<float, std::milli> MC_time = MC_t2 - MC_t1;
-            duration<float, std::milli> PP_time = PP_t2 - PP_t1;
+            duration<double, std::milli> MC_time = MC_t2 - MC_t1;
+            duration<double, std::milli> PP_time = PP_t2 - PP_t1;
             
             // Loading results
-            std::vector<float> heating_rates_PP_in(itot, 0.);
-            std::vector<float> heating_rates_MC_in(itot, 0.);
-            std::vector<float> arr_z_in(itot, 0.);
+            std::vector<double> heating_rates_PP_in(itot, 0.);
+            std::vector<double> heating_rates_MC_in(itot, 0.);
+            std::vector<double> arr_z_in(itot, 0.);
 
             std::fstream file_MCinput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
             std::fstream file_PPinput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_PP_" + CASE + ".csv");
@@ -265,7 +273,7 @@ int main()
 
 
             ////////////// Calculating metrics ///////////////////////
-            float RMSE_tot, ME_tot;
+            double RMSE_tot, ME_tot;
 
             for (size_t i = 0; i < itot; i++)
             {
@@ -290,7 +298,7 @@ int main()
             {
                 Gnuplot gp;
 
-                std::vector<std::pair<float,float>> hr_1D, hr_3D;
+                std::vector<std::pair<double,double>> hr_1D, hr_3D;
                 for (int i = 0; i < itot; i++)
                 {
                     hr_1D.emplace_back(heating_rates_PP_in[i], arr_z_in[i]);

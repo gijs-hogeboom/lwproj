@@ -4,6 +4,7 @@ project(LWproj)
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer")
 
 # Find Boost Iostreams for numerical integration and OMP for parallelization
 find_package(Boost REQUIRED COMPONENTS iostreams)
