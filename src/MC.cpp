@@ -49,18 +49,33 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                         double dx,
                         double dy,
                         int N,
-                        int domain_section)
+                        int domain_section,
+                        std::vector<int>& M_photon_origin_counter)
 {
     const double eps = 2e-5;
-    const int jktot = jtot * ktot;
+    const int jktot = jtot*ktot;
+    
+    const int Mstride = itot*jtot*ktot + jtot*ktot + 1; // (n_volumes + n_tiles + TOA)
+    int sfc_offset = 0;
+    if (domain_section == 0)
+    {
+        sfc_offset = jktot; // n_tiles;
+    }
 
+    
+
+    u_int64_t photon_not_tracked_counter = 0;
+    u_int64_t photon_is_tracked_counter = 0;
 
     // #pragma omp for schedule(dynamic)
     for (int idx_photon = 0; idx_photon < N; idx_photon++)
     {
+
+        bool photon_is_tracked = false;
         
         // Loading initial photon variables
         int idx_flat = arr_photons_pos_idx[idx_photon];
+        int idx_original = 0 + idx_flat; // storing starting position
         double x      = arr_photons_pos_x[idx_photon];
         double y      = arr_photons_pos_y[idx_photon];
         double z      = arr_photons_pos_z[idx_photon];
@@ -175,7 +190,10 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 // TOA_absorbed_db += static_cast<double>(arr_photons_phi[idx_photon]);
                 TOA_absorbed_db += arr_photons_phi_db[idx_photon];
 
+                int idx_M = itot + jktot + Mstride*(sfc_offset + idx_original);
+                M_photon_origin_counter[idx_M]++;
                 tot_error += estimate_max_numerical_double_error(TOA_absorbed);
+                photon_is_tracked = true;
                 break;
             }
             bool at_surface        = (std::abs(z) < eps);
@@ -190,7 +208,11 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 // field_sfc_absorbed_db[idx_sfc] += static_cast<double>(arr_photons_phi[idx_photon]);
                 field_sfc_absorbed_db[idx_sfc] += arr_photons_phi_db[idx_photon];
 
+                int idx_M = idx_sfc + Mstride*(sfc_offset + idx_original);
+                // std::cout << domain_section << ',' << "absorbed by sfc" << ',' << idx_original << ',' << idx_sfc << ',' << idx_M << std::endl;
+                M_photon_origin_counter[idx_M]++;
                 tot_error += estimate_max_numerical_double_error(field_sfc_absorbed[idx_sfc]);
+                photon_is_tracked = true;
                 break;
             }
 
@@ -295,12 +317,31 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 // field_atm_absorbed_db[idx_flat] += static_cast<double>(arr_photons_phi[idx_photon]);
                 field_atm_absorbed_db[idx_flat] += arr_photons_phi_db[idx_photon];
 
+                int idx_M = jktot + idx_flat + Mstride*(sfc_offset + idx_original);
+                M_photon_origin_counter[idx_M]++;
+
+                photon_is_tracked = true;
+
+                // std::cout << domain_section << ',' << "absorbed by atm" << ',' << idx_original << ',' << idx_flat << ',' << idx_M << ',' <<  sfc_offset << std::endl;
+
                 tot_error += estimate_max_numerical_double_error(field_atm_absorbed[idx_flat]);
 
                 if (idx_flat == 34) {arr_z34_phi.push_back(static_cast<double>(arr_photons_phi[idx_photon]));}
             }
             counter++;
         }
+
+        if (photon_is_tracked == true)
+        {
+            photon_is_tracked_counter++;
+        } else {
+            photon_not_tracked_counter++;
+        }
+    }
+
+    if (photon_not_tracked_counter > 0)
+    {
+        std::cout << "!!!!!!!!!! WARNING !!!!!!!!!    " << photon_not_tracked_counter << " photons are not tracked!! " << std::endl;
     }
 }
 
@@ -318,6 +359,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           int itot,
                           const std::string& INTERCELL_TECHNIQUE,
                           const std::string& INTRACELL_TECHNIQUE,
+                          const std::string& CASE,
                           int Natm,
                           int Nsfc,
                           bool print_EB,
@@ -429,6 +471,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     std::vector<double> arr_photons_atm_tau(Natm);
     std::vector<double> arr_photons_atm_phi(Natm);
     std::vector<double> arr_photons_atm_phi_db(Natm);
+    std::vector<double> field_atm_phi_per_photon(n_volumes);
     std::vector<int>   field_atm_photons_per_gridcell(n_volumes, 0);
 
     std::vector<int>   arr_photons_sfc_pos_idx(Nsfc);
@@ -440,6 +483,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     std::vector<double> arr_photons_sfc_tau(Nsfc);
     std::vector<double> arr_photons_sfc_phi(Nsfc);
     std::vector<double> arr_photons_sfc_phi_db(Nsfc);
+    std::vector<double> field_sfc_phi_per_photon(n_tiles);
     std::vector<int>   field_sfc_photons_per_gridcell(n_tiles, 0);
 
     double TOA_absorbed = 0.0; // This variable keeps track of photons lost to TOA
@@ -511,8 +555,6 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             }
 
             // Calculating the power per photon for each cell in the field
-            std::vector<double> field_atm_phi_per_photon(n_volumes);
-            std::vector<double> field_sfc_phi_per_photon(n_tiles);
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
                 field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
@@ -643,8 +685,6 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
             // Calculating the power per photon for each cell in the field
-            std::vector<double> field_atm_phi_per_photon(n_volumes);
-            std::vector<double> field_sfc_phi_per_photon(n_tiles);
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
                 field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
@@ -712,38 +752,81 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                     for (size_t k = 0; k < ktot; k++)
                     {
 
-                        size_t idx_atm = i*jtot*ktot + j*ktot + k;
-                        double center = field_atm_phi[idx_atm];
-                        double diffs = 0.;
+                        // Creating the supposed indexes for accessing the values for calculating the gradient
+                        size_t idx_atm    = i*jtot*ktot + j*ktot + k;
+                        size_t idx_z_up   = (i+1)*jtot*ktot + j*ktot + k;
+                        size_t idx_z_down = (i-1)*jtot*ktot + j*ktot + k;
+                        size_t idx_y_pos  = i*jtot*ktot + (j+1)*ktot + k;
+                        size_t idx_y_neg  = i*jtot*ktot + (j-1)*ktot + k;
+                        size_t idx_x_pos  = i*jtot*ktot + j*ktot + (k+1);
+                        size_t idx_x_neg  = i*jtot*ktot + j*ktot + (k-1);
+                        
+                        float dz_tot, dx_tot, dy_tot;
+                        float phi_z_up, phi_z_down, phi_y_pos, phi_y_neg, phi_x_pos, phi_x_neg;
 
-                        for (size_t iidx = 0; iidx < 27; iidx++)
+                        dx_tot = 2*dx;
+                        dy_tot = 2*dy;
+
+                        // Fetching values
+                        // z-direction
+                        if (i == (itot-1))
                         {
-                            int ii = i + iidx / 9 - 1;
-                            int jj = j + (iidx / 3) % 3 - 1;
-                            int kk = k + iidx % 3 - 1;
-
-                            if      (jj == -1)   {jj = jtot - 1;}
-                            else if (jj == jtot) {jj = 0;}
-                            if      (kk == -1)   {kk = ktot - 1;}
-                            else if (kk == ktot) {kk = 0;}
-
-                            if (ii == -1)
-                            {
-                                size_t idx_sfc = j*ktot + k;
-                                diffs += pow(center - field_sfc_phi[idx_sfc], 2);
-                            }
-                            else if (ii == itot)
-                            {
-                                diffs += pow(center,2);
-                            }
-                            else
-                            {
-                                size_t idx_atm_diffs = ii*jtot*ktot + jj*ktot + kk;
-                                diffs += pow(center - field_atm_phi[idx_atm_diffs], 2);
-                            }
+                            dz_tot     = 0.5*arr_dz[i-1] + 1.5*arr_dz[i];
+                            phi_z_up   = 0.;
+                            phi_z_down = field_atm_phi[idx_z_down];
+                        } else
+                        if (i == 0)
+                        {
+                            dz_tot     = 0.5*arr_dz[i];
+                            size_t idx_sfc = j*ktot + k;
+                            phi_z_up   = field_atm_phi[idx_z_up];
+                            phi_z_down = field_atm_phi[idx_atm]; // ignoring surface
+                        }
+                        else
+                        {
+                            dz_tot     = 0.5*arr_dz[i-1] + arr_dz[i] + 0.5*arr_dz[i+1];
+                            phi_z_up   = field_atm_phi[idx_z_up];
+                            phi_z_down = field_atm_phi[idx_z_down];
                         }
 
-                        field_atm_phi_gradient[idx_atm] = std::sqrt(diffs / 26.); // Taking the root mean of the differences (26 neighbors)
+                        // y-direction
+                        if (j == (jtot-1))
+                        {
+                            idx_y_pos = i*jtot*ktot + k;
+                        }
+                        if (j == 0)
+                        {
+                            idx_y_neg = i*jtot*ktot + (jtot-1)*ktot + k;
+                        }
+
+                        phi_y_pos = field_atm_phi[idx_y_pos];
+                        phi_y_neg = field_atm_phi[idx_y_neg];
+
+
+                        // x-direction
+                        if (k == (ktot-1))
+                        {
+                            idx_x_pos = i*jtot*ktot + j*ktot;
+                        }
+                        if (k == 0)
+                        {
+                            idx_x_neg = i*jtot*ktot + j*ktot + (ktot-1);
+                        }
+
+                        phi_x_pos = field_atm_phi[idx_x_pos];
+                        phi_x_neg = field_atm_phi[idx_x_neg];
+                        
+
+
+                        // Calculating the gradient
+                        float term_x = (phi_x_pos - phi_x_neg)/dx_tot;
+                        float term_y = (phi_y_pos - phi_y_neg)/dy_tot;
+                        float term_z = (phi_z_up - phi_z_down)/dz_tot;
+
+                        float gradient_magnitude = sqrt(term_x*term_x + term_y*term_y + term_z*term_z);
+
+                        // Inserting value
+                        field_atm_phi_gradient[idx_atm] = gradient_magnitude;
 
                     }
                 }
@@ -836,8 +919,6 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
             // Calculating the power per photon for each cell in the field
-            std::vector<double> field_atm_phi_per_photon(n_volumes);
-            std::vector<double> field_sfc_phi_per_photon(n_tiles);
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
                 field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
@@ -905,6 +986,12 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     std::vector<double> arr_z34_phi;
     arr_z34_phi.reserve(Natm);
 
+
+
+    int n_tot = n_volumes + n_tiles + 1; // sfc + atm + TOA
+
+    std::vector<int> M_photon_origin_counter(n_tot*n_tot);
+
     // Photons from the atmosphere
     photon_propagation(arr_photons_atm_pos_idx,
                        arr_photons_atm_pos_x,
@@ -939,7 +1026,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        dx,
                        dy,
                        Natm,
-                       0);
+                       0,
+                       M_photon_origin_counter);
     
     if (verbose)
     {
@@ -979,9 +1067,153 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        dx,
                        dy,
                        Nsfc,
-                       1);
+                       1,
+                       M_photon_origin_counter);
 
     
+
+
+    // Storing photon counter matrix
+    std::ofstream fout_Mphot("/home/gijs-hogeboom/dev/lwproj/data_output/photon_matrix/photon_counter_" + CASE + 
+                                 "_" + INTERCELL_TECHNIQUE + "_Natm" + std::to_string(static_cast<int>(std::log2(Natm))) + "_Nsfc" + 
+                                 std::to_string(static_cast<int>(std::log2(Nsfc))) + ".dat");
+    if (!fout_Mphot.is_open())
+    {
+        std::cerr << "Error, cannot open fout_Mphot!" << std::endl;
+    }
+
+    std::vector<std::string> counter_axis(n_tot);
+    // Write axis
+    for (int iaxis = 0; iaxis < n_tot; iaxis++)
+    {
+        if (iaxis < n_tiles)
+        {
+            counter_axis[iaxis] = "sfc" + std::to_string(iaxis);
+        }
+        else if ((iaxis >= n_tiles) && (iaxis < (n_tiles + n_volumes)))
+        {
+            counter_axis[iaxis] = "atm" + std::to_string(iaxis - n_tiles);
+        }
+        else
+        {
+            counter_axis[iaxis] = "TOA";
+        }
+    }
+
+    // Writing header
+    fout_Mphot << "received from,";
+    for (int icol = 0; icol < n_tot; icol++)
+    {
+        if (icol < (n_tot-1))
+        {
+            fout_Mphot << counter_axis[icol] << ',';
+        }
+        else
+        {
+            fout_Mphot << counter_axis[icol] << std::endl;
+        }
+    }
+
+    // Writing body
+    for (int irow = 0; irow < n_tot; irow++)
+    {
+        fout_Mphot << counter_axis[irow] << ',';
+
+        for (int icol = 0; icol < n_tot; icol++)
+        {
+            int idx_M = irow*n_tot + icol;
+            if (icol < (n_tot-1))
+            {
+                fout_Mphot << M_photon_origin_counter[idx_M] << ',';
+            }
+            else
+            {
+                fout_Mphot << M_photon_origin_counter[idx_M] << std::endl;
+            }
+        }
+        // std::cout << "row " << irow << std::endl;
+    }
+
+    fout_Mphot.close();
+
+
+    // Calculating phi table
+    std::vector<double> M_PhotPhi(n_tot*n_tot);
+    for (int irow = 0; irow < n_tot; irow++)
+    {
+        for (int icol = 0; icol < n_tot; icol++)
+        {
+            int idx_M = irow*n_tot + icol;
+            double photon_energy = 0.;
+            if (irow < n_tiles)
+            {
+                int idx_sfc = irow;
+                if (!std::isinf(field_atm_phi_per_photon[idx_sfc]))
+                {
+                    photon_energy = field_sfc_phi_per_photon[idx_sfc] * M_photon_origin_counter[idx_M];
+                }
+            }
+            else
+            if ((irow >= n_tiles) && (irow < (n_tiles + n_volumes)))
+            {
+                int idx_atm = irow - n_tiles;
+                if (!std::isinf(field_atm_phi_per_photon[idx_atm]))
+                {
+                    photon_energy = field_atm_phi_per_photon[idx_atm] * M_photon_origin_counter[idx_M];
+                }
+            }
+            M_PhotPhi[idx_M] = photon_energy;
+        }
+    }
+
+    // Writing phi matrix
+    std::ofstream fout_MphotPhi("/home/gijs-hogeboom/dev/lwproj/data_output/photon_matrix/photon_phi_matrix_" + CASE + 
+                                 "_" + INTERCELL_TECHNIQUE + "_Natm" + std::to_string(static_cast<int>(std::log2(Natm))) + "_Nsfc" + 
+                                 std::to_string(static_cast<int>(std::log2(Nsfc))) + ".dat");
+    if (!fout_MphotPhi.is_open())
+    {
+        std::cerr << "Error, cannot open fout_MphotPhi!" << std::endl;
+    }
+
+    // Writing header
+    fout_MphotPhi << "received from,";
+    for (int icol = 0; icol < n_tot; icol++)
+    {
+        if (icol < (n_tot-1))
+        {
+            fout_MphotPhi << counter_axis[icol] << ',';
+        }
+        else
+        {
+            fout_MphotPhi << counter_axis[icol] << std::endl;
+        }
+    }
+
+    // Writing body
+    for (int irow = 0; irow < n_tot; irow++)
+    {
+        fout_MphotPhi << counter_axis[irow] << ',';
+
+        for (int icol = 0; icol < n_tot; icol++)
+        {
+            int idx_M = irow*n_tot + icol;
+            if (icol < (n_tot-1))
+            {
+                fout_MphotPhi << M_PhotPhi[idx_M] << ',';
+            }
+            else
+            {
+                fout_MphotPhi << M_PhotPhi[idx_M] << std::endl;
+            }
+        }
+    }
+
+    fout_MphotPhi.close();
+
+
+
+
+
 
     double tot_absorbed_z34 = kahan_sum(arr_z34_phi);
     // std::cout << std::setprecision(16) << field_atm_absorbed[34] << '\t' << tot_absorbed_z34 << '\t' << arr_z34_phi.size() << '\t' << field_atm_absorbed[34] - tot_absorbed_z34 << std::endl;
@@ -1003,7 +1235,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         field_atm_numerical_differences[idx_atm] = field_atm_absorbed_db[idx_atm] - field_atm_absorbed[idx_atm];
     }
 
-    std::cout << "[][][][][] Total difference: " << kahan_sum(field_atm_numerical_differences)/(dx*dy) << std::endl;
+    // std::cout << "[][][][][] Total difference: " << kahan_sum(field_atm_numerical_differences)/(dx*dy) << std::endl;
 
     std::vector<double> field_atm_heating_rates(n_volumes);
     std::vector<double> field_sfc_heating_rates(n_tiles);

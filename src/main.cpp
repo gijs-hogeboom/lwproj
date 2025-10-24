@@ -29,12 +29,12 @@ int main()
     }
 
 
-    std::vector<int> arr_photonpows = {22};
+    std::vector<int> arr_photonpows = {24};
 
 
     // Control variables
     std::string CASE = "gpt21";                   // {gpt0, gpt1, gpt3, gpt21}
-    bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
+    bool ENABLE_MC = false;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
     double dx = 1e4;                              // [m]
     double dy = 1e4;                              // [m]
@@ -47,12 +47,12 @@ int main()
 
 
     // Console output params
-    bool print_EB_MC         = true;
-    bool print_EB_PP         = false;
+    bool print_EB_MC         = false;
+    bool print_EB_PP         = true;
     bool verbose             = true;
     bool print_final_results = true;
     bool print_counter       = false;
-    bool plot_results        = true;
+    bool plot_results        = false;
 
 
     if (verbose)
@@ -135,7 +135,7 @@ int main()
             {
                 if (verbose)
                 {
-                    std::cout << "Start of MC" << std::endl;
+                    std::cout << "Start of MC - Natm: " + std::to_string(Natm_pow) + ", Nsfc: " + std::to_string(Nsfc_pow) << std::endl;
                 }
 
                 heating_rates_MC = run_MC(arr_z,
@@ -150,7 +150,8 @@ int main()
                                         jtot,
                                         itot,
                                         INTERCELL_TECHNIQUE, 
-                                        INTRACELL_TECHNIQUE, 
+                                        INTRACELL_TECHNIQUE,
+                                        CASE,
                                         Natm, 
                                         Nsfc,
                                         print_EB_MC,

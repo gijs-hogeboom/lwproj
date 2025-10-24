@@ -20,7 +20,7 @@ namespace cfloat
 
 namespace cdouble
 {
-    const double PI = 3.141592653589793238;
+    const double PI = 3.141592653589793;
     const double RHO = 1.225;
     const double CP = 1004.;
     const double u = pow(2, -53);
@@ -110,6 +110,43 @@ inline double estimate_max_numerical_double_error(double s)
 {
     return cdouble::u * s;
 }
+
+
+inline std::vector<double> linspace(double start, double end, int N)
+{
+    std::vector<double> arr_result(N);
+
+    double step_size = (end - start)/(N - 1);
+
+    for (size_t i = 0; i < N; i++)
+    {
+        arr_result[i] = start + (static_cast<double>(i) * step_size);
+    }
+
+    return arr_result;
+}
+
+
+
+
+inline double trapezoid(const std::vector<double>& arr_x,
+                const std::vector<double>& arr_y)
+{
+    size_t n = arr_x.size();
+    std::vector<double> values((n - 1));
+
+    for (size_t i = 0; i < (n - 1); i++)
+    {
+        double dx = arr_x[i+1] - arr_x[i];
+        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0;
+        values[i] = Y;
+    }
+
+    double result = std::accumulate(values.begin(), values.end(), 0.0);
+    return result;
+}
+
+
 
 
 
