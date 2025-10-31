@@ -82,7 +82,6 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
             // Calculating emission term
             double emission_term_uph = 0.;
             double emission_term_downh = 0.;
-
             for (int k = 0; k < ih; k++)
             {
                 double temp = (arr_Batm[k] * (std::exp(-(arr_tauh[k+1] - tau)/mu) - std::exp(-(arr_tauh[k] - tau)/mu))); 
@@ -111,7 +110,7 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
     std::vector<double> arr_F_uph(itoth);
     std::vector<double> arr_F_downh(itoth);
 
-    for (size_t i = 0; i < itoth; i++)
+    for (size_t ih = 0; ih < itoth; ih++)
     {
         // Calculating and storing I(tau, mu) * mu for each angle per level
         std::vector<double> arr_Imu_uph(jtot);
@@ -120,13 +119,13 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
         {
             double mu = arr_mu[j];
 
-            int idx = i*jtot + j;
+            int idx = ih*jtot + j;
 
             arr_Imu_uph[j]   = M_I_uph[idx]*mu;
             arr_Imu_downh[j] = M_I_downh[idx]*mu;
         }
-        arr_F_uph[i]   = 2.*cdouble::PI*trapezoid(arr_mu, arr_Imu_uph);
-        arr_F_downh[i] = 2.*cdouble::PI*trapezoid(arr_mu, arr_Imu_downh);
+        arr_F_uph[ih]   = 2.*cdouble::PI*trapezoid(arr_mu, arr_Imu_uph);
+        arr_F_downh[ih] = 2.*cdouble::PI*trapezoid(arr_mu, arr_Imu_downh);
     }
 
     // Calculating net flux at each cell
