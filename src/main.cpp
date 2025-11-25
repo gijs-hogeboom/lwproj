@@ -21,9 +21,10 @@ int main(int argc, char* argv[])
 
 
     // Handling input
-    std::string arg1 = "gpt21";
+    std::string arg1 = "gpt3";
     std::string arg2 = "power";
     int arg3 = 21;
+    bool arg4 = false;
 
 
     if (argc > 1)
@@ -38,8 +39,12 @@ int main(int argc, char* argv[])
     {
         arg3 = std::stoi(argv[3]);
     }
+    if (argc > 4)
+    {
+        std::istringstream(argv[4]) >> arg4;
+    }
 
-    std::cout << "Arguments | CASE: " << arg1 << ", INTERCELL_TECHNIQUE: " << arg2 << ", Nphot_pow: " << arg3 << std::endl;
+    std::cout << "Arguments | CASE: " << arg1 << ", INTERCELL_TECHNIQUE: " << arg2 << ", Nphot_pow: " << arg3 << ", Pesc_mode: " << arg4 << std::endl;
 
 
 
@@ -55,15 +60,15 @@ int main(int argc, char* argv[])
     std::string CASE = arg1;
     bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
-    double dx = 100;                              // [m]
-    double dy = 100;                              // [m]
 
-    std::string INTERCELL_TECHNIQUE = arg2;    // {uniform, power, power-gradient}
+    std::string INTERCELL_TECHNIQUE = arg2;       // {uniform, power, power-gradient}
     std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
+
+    bool Pesc_mode = arg4;
 
     int N_mu = 100;                                // Number of angles to calculate at each height in PP-algorithm
 
-    bool enable_full_counter_matrix = false;
+    bool enable_full_counter_matrix = true;
 
 
 
@@ -75,39 +80,109 @@ int main(int argc, char* argv[])
     bool plot_results        = true;
 
 
+    /////////////// READING CASE //////////////////
 
-    // Reading MVcases from json file
     if (verbose)
     {
         std::cout << "Start of program, reading input data" << std::endl;
     }
+    
+    // Initializing variables to load
+    std::vector<double> arr_z;
+    std::vector<double> arr_zh;
+    std::vector<double> arr_dz;
+    std::vector<double> arr_kext;
+    std::vector<double> arr_Batm;
+    double Bsfc, dx, dy;
+    int itot, jtot, ktot;
 
-    std::fstream file_MVcases("/home/gijs-hogeboom/dev/lwproj/data_input/MVcases.json");
-    if (!file_MVcases.is_open())
+    // Reading the case json file
+    std::string caseID = CASE.substr(0, 3);
+    std::fstream file_cases("/home/gijs-hogeboom/dev/lwproj/data_input/" + caseID + "cases.json");
+    if (!file_cases.is_open())
     {
-        std::cerr << "Could not open MVcases.json!" << std::endl;
+        std::cerr << "Could not open " + caseID + "cases.json!" << std::endl;
         return 1;
     }
-
     nlohmann::json j;
-    file_MVcases >> j;
+    file_cases >> j;
 
-    std::vector<double> arr_z = j["z_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_zh = j["zh_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_dz = j["dz_" + CASE].get<std::vector<double>>();
+    // File input handling
+    if (caseID == "gpt") // MV cases
+    {
+        arr_z = j["z_" + CASE].get<std::vector<double>>();
+        arr_zh = j["zh_" + CASE].get<std::vector<double>>();
+        arr_dz = j["dz_" + CASE].get<std::vector<double>>();
 
-    std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
-    std::vector<double> arr_Batmh = j["Batmh_" + CASE].get<std::vector<double>>();
+        // jtot, ktot, dx and dy are all predetermined in this case
+        itot = arr_z.size();
+        jtot = 1;
+        ktot = 1;
 
-    double Bsfc = j["Bsfc_" + CASE].get<double>();
+        dx = 100;
+        dy = 100;
+
+        arr_kext = j["kext_" + CASE].get<std::vector<double>>();
+        arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
+
+        Bsfc = j["Bsfc_" + CASE].get<double>();
+    }
+    else if (caseID == "s3D") // simple 3D cases
+    {
+        arr_z = j[CASE + "_z"].get<std::vector<double>>();
+        arr_zh = j[CASE + "_zh"].get<std::vector<double>>();
+        arr_dz = j[CASE + "_dz"].get<std::vector<double>>();
+
+        std::vector<int> case_limits = j[CASE + "_case_limits"].get<std::vector<int>>();
+        itot = case_limits[0];
+        jtot = case_limits[1];
+        ktot = case_limits[2];
+
+        std::vector<int> cell_size_horizontal = j[CASE + "_cell_size_horizontal"].get<std::vector<int>>();
+        dx = cell_size_horizontal[0];
+        dy = cell_size_horizontal[1];
+
+        // Generating kext and Batm arrays
+        std::vector<double> col_kext_hom   = j[CASE + "_kext_hom"].get<std::vector<double>>();
+        std::vector<double> col_kext_cloud = j[CASE + "_kext_cloud"].get<std::vector<double>>();
+        std::vector<double> col_Batm_hom   = j[CASE + "_Batm_hom"].get<std::vector<double>>();
+        std::vector<double> col_Batm_cloud = j[CASE + "_Batm_cloud"].get<std::vector<double>>();
+
+        std::vector<int> cloud_coords_x = j[CASE + "_cloud_coords_x"].get<std::vector<int>>();
+        std::vector<int> cloud_coords_y = j[CASE + "_cloud_coords_y"].get<std::vector<int>>();
+        int Ncloud_coords = cloud_coords_x.size();
+
+        std::vector<int> hom_coords_x(jtot*ktot - Ncloud_coords);
+        std::vector<int> hom_coords_y(jtot*ktot - Ncloud_coords);
+        int hom_idx = 0;
+        for (int j = 0; j < jtot; j++)
+        {
+            for (int k = 0; k < ktot; k++)
+            {
+
+                // going through each cloud coord pair
+                for (int idx_cloud = 0; idx_cloud < Ncloud_coords; idx_cloud++)
+                {
+                    int cloud_x = cloud_coords_x[idx_cloud];
+                    int cloud_y = cloud_coords_y[idx_cloud];
+
+                    bool is_cloud_column = ((j == cloud_y) && (k == cloud_x));
+                    if (!is_cloud_column)
+                    {
+                        hom_coords_x[hom_idx] = k;
+                        hom_coords_y[hom_idx] = j;
+                        hom_idx += 1;
+                    }
+                }
+            }
+        }
+
+        // Filling in the kext and batm arrays
 
 
-
-    // General initializations
-    int itot      = arr_z.size();
-    int jtot      = 4;
-    int ktot      = 4;
+        Bsfc = j[CASE + "_Bsfc"].get<double>();
+    }
+    
 
         
     std::vector<double> heating_rates_MC(itot);
@@ -139,7 +214,8 @@ int main(int argc, char* argv[])
                                 Nsfc,
                                 print_EB_MC,
                                 verbose,
-                                enable_full_counter_matrix);
+                                enable_full_counter_matrix,
+                                Pesc_mode);
         
         // Storing output
         std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
@@ -171,7 +247,6 @@ int main(int argc, char* argv[])
                                             arr_dz,
                                             arr_kext,
                                             arr_Batm,
-                                            arr_Batmh,
                                             Bsfc,
                                             N_mu,
                                             print_EB_PP,

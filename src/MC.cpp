@@ -48,8 +48,11 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                         std::vector<int>& M_photon_origin_counter,
                         bool enable_full_counter_matrix,
                         std::vector<u_int64_t>& outside_cell_counter,
-                        std::vector<u_int64_t>& inside_cell_counter)
+                        std::vector<u_int64_t>& inside_cell_counter,
+                        bool Pesc_mode)
 {
+
+    
     const double eps = 2e-5;
     const int jktot = jtot*ktot;
     
@@ -68,6 +71,19 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 
     for (int idx_photon = 0; idx_photon < N; idx_photon++)
     {
+        // If Pesc mode is enabled, first updating atmospheric photons to transfer to the cell bounds without updating its optical thickness
+        bool Pesc_updated = true;
+
+        if (Pesc_mode)
+        {
+            if (domain_section == 0)
+            {
+                Pesc_updated = false;
+            } else {
+                Pesc_updated = true;
+            }
+        }
+
 
         // Tracking wheter each photon is accounted for inside the photon counter matrix
         bool photon_is_tracked = false;
@@ -130,14 +146,6 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 break;
             }
         }
-
-        double ds_previous = 0;
-        double x_prev = 0;
-        double y_prev = 0;
-        double distx_previous = 0;
-        double disty_previous = 0;
-        double dnx_prev = 0;
-        double dny_prev = 0;
         
         int counter = 0;
         
@@ -238,7 +246,6 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 dnx = arr_xh[idx_x] - x;
             }
             time_x = dnx/dx;
-            dnx_prev = dnx;
 
             if (dy >= 0.) // y
             {
@@ -247,7 +254,6 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
                 dny = arr_yh[idx_y] - y;
             }
             time_y = dny/dy;
-            dny_prev = dny;
 
             if (dz >= 0.) // z
             {
@@ -294,43 +300,52 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
             double max_s = tau/current_kext;
             double tau_absorbed = current_kext*ds;
 
-            ds_previous = ds;
-            distx_previous = dist_x;
-            disty_previous = dist_y;
 
-            x_prev = x;
-            y_prev = y;
-            if (ds < max_s)
+            if (Pesc_updated)
             {
-                tau -= tau_absorbed;
+                // Regular propegation, taking tau into account
+                if (ds < max_s)
+                {
+                    tau -= tau_absorbed;
+                    x += dist_x;
+                    y += dist_y;
+                    z += dist_z;
+
+                    out_of_cell = true;
+                }
+                else
+                {
+                    tau = 0.;
+                    double fs = max_s / ds;
+                    x += dist_x*fs;
+                    y += dist_y*fs;
+                    z += dist_z*fs;
+
+                    field_atm_absorbed[idx_flat] += photon_power;
+
+                    if (enable_full_counter_matrix)
+                    {
+                        int idx_M = jktot + idx_flat + Mstride*(sfc_offset + idx_original);
+                        M_photon_origin_counter[idx_M]++;
+                    }
+                    
+
+                    photon_is_tracked = true;
+
+                    tot_error += estimate_max_numerical_double_error(field_atm_absorbed[idx_flat]);
+
+                }
+            } 
+            else
+            {
+                // Propegating all of the photons onto the surface, not using tau yet
                 x += dist_x;
                 y += dist_y;
                 z += dist_z;
-
+                Pesc_updated = true;
                 out_of_cell = true;
             }
-            else
-            {
-                tau = 0.;
-                double fs = max_s / ds;
-                x += dist_x*fs;
-                y += dist_y*fs;
-                z += dist_z*fs;
-
-                field_atm_absorbed[idx_flat] += photon_power;
-
-                if (enable_full_counter_matrix)
-                {
-                    int idx_M = jktot + idx_flat + Mstride*(sfc_offset + idx_original);
-                    M_photon_origin_counter[idx_M]++;
-                }
-                
-
-                photon_is_tracked = true;
-
-                tot_error += estimate_max_numerical_double_error(field_atm_absorbed[idx_flat]);
-
-            }
+            
             counter++;
         }
 
@@ -364,6 +379,14 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 }
 
 
+
+
+
+
+
+
+
+
 std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const std::vector<double>& arr_zh,
                           const std::vector<double>& arr_dz,
@@ -382,7 +405,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           int Nsfc,
                           bool print_EB,
                           bool verbose,
-                          bool enable_full_counter_matrix)
+                          bool enable_full_counter_matrix,
+                          bool Pesc_mode)
 {
 
     ///////////////////// INITIALIZING DOMAIN ///////////////////////
@@ -469,6 +493,91 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             }
         }
     }
+
+
+
+    // Loading Pesc-kext curves
+
+    if (Pesc_mode)
+    {
+        if (verbose)
+        {
+            std::cout << "  MC: Attributing Pesc to cells" << std::endl;
+        }
+        for (int i = 0; i < itot; i++)
+        {
+
+            double dz = arr_dz[i];
+            std::string Pesc_path_name = f_Pesccurve_name(dx, dy, dz);  
+
+            std::fstream Pesc_curve(Pesc_path_name);
+
+            if (!Pesc_curve.is_open())
+            {
+                std::cout << "WARNING! Pesc curve '" << Pesc_path_name << "' not found!" << std::endl;
+                std::vector<double> exit_vec(1);
+                return exit_vec;
+            }
+            
+            size_t N_points = count_lines(Pesc_curve) - 1;
+            Pesc_curve.clear();
+            Pesc_curve.seekg(0, std::ios::beg);
+            
+
+            std::vector<double> arr_kext(N_points);
+            std::vector<double> arr_Pesc(N_points);
+
+            std::string line;
+            int idx = 0;
+
+            std::getline(Pesc_curve, line); // Skipping the header
+
+            while (std::getline(Pesc_curve, line))
+            {
+                std::stringstream ss(line);
+                std::string cell;
+                std::getline(ss, cell, ','); // index col
+                std::getline(ss, cell, ','); // kext value
+                double kext = std::stod(cell);
+                if ((kext >= 1e-15) && (kext <= 1e5))
+                {
+                    arr_kext[idx] = kext;
+                }
+                std::getline(ss, cell, ','); // Pesc value
+                double Pesc = std::stod(cell);
+                if ((kext >= 1e-15) && (kext <= 1e5))
+                {
+                    arr_Pesc[idx] = Pesc;
+                }
+                idx++;
+            }
+    
+            LinearInterpolator_double f_Pesc(arr_kext, arr_Pesc);
+
+            for (int j = 0; j < jtot; j++)
+            {
+                for (int k = 0; k < ktot; k++)
+                {
+                    int idx = i*jtot*ktot + j*ktot + k;
+
+                    double kext = field_atm_kext[idx];
+
+                    double Pesc = f_Pesc(kext);
+
+                    double emitted_power = Pesc * field_atm_phi[idx];
+
+                    field_atm_emitted[idx] = emitted_power;
+                }
+            }
+        }
+    }
+
+
+
+
+
+
+
 
     /////////////////////////// SAMPLING /////////////////////////// 
     
@@ -570,7 +679,12 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             // Calculating the power per photon for each cell in the field
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
-                field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                if (Pesc_mode)
+                {
+                    field_atm_phi_per_photon[idx_atm] = field_atm_emitted[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                } else {
+                    field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                }
             }
             for (int idx_sfc = 0; idx_sfc < n_tiles; idx_sfc++)
             {
@@ -700,7 +814,12 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             // Calculating the power per photon for each cell in the field
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
-                field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                if (Pesc_mode)
+                {
+                    field_atm_phi_per_photon[idx_atm] = field_atm_emitted[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                } else {
+                    field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                }
             }
             for (int idx_sfc = 0; idx_sfc < n_tiles; idx_sfc++)
             {
@@ -722,8 +841,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
             // Compensating power per photon by making sure the sum of all photon's phi = total emitted phi
-            double sum_field_atm_phi = kahan_sum(field_atm_phi);
-            double sum_field_sfc_phi = kahan_sum(field_sfc_phi);
+            double sum_field_atm_phi = kahan_sum(field_atm_emitted);
+            double sum_field_sfc_phi = kahan_sum(field_sfc_emitted);
             double sum_arr_photons_atm_phi = kahan_sum(arr_photons_atm_phi);
             double sum_arr_photons_sfc_phi = kahan_sum(arr_photons_sfc_phi);
             for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
@@ -928,7 +1047,12 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             // Calculating the power per photon for each cell in the field
             for (int idx_atm = 0; idx_atm < n_volumes; idx_atm++)
             {
-                field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                if (Pesc_mode)
+                {
+                    field_atm_phi_per_photon[idx_atm] = field_atm_emitted[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                } else {
+                    field_atm_phi_per_photon[idx_atm] = field_atm_phi[idx_atm] / field_atm_photons_per_gridcell[idx_atm];
+                }
             }
             for (int idx_sfc = 0; idx_sfc < n_tiles; idx_sfc++)
             {
@@ -1043,7 +1167,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        M_photon_origin_counter,
                        enable_full_counter_matrix,
                        outside_cell_counter,
-                       inside_cell_counter);
+                       inside_cell_counter,
+                       Pesc_mode);
     
     if (verbose)
     {
@@ -1082,7 +1207,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        M_photon_origin_counter,
                        enable_full_counter_matrix,
                        outside_cell_counter,
-                       inside_cell_counter);
+                       inside_cell_counter,
+                       Pesc_mode);
 
     
 

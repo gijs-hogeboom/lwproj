@@ -3,10 +3,14 @@
 #include <vector>
 #include <iostream>
 #include <iomanip>
+#include <sstream>
+#include <string>
 #include <stdexcept>
 #include <cstdint>
 #include <queue>
 #include <numeric>
+#include <algorithm>
+#include <fstream>
 
 
 // Constants
@@ -282,3 +286,90 @@ struct AliasTable_float {
         return (r < prob[i]) ? i : alias[i];
     }
 };
+
+
+
+inline std::string f_dz_string(double value) {
+    std::ostringstream temp;
+    temp << std::fixed << std::setprecision(5) << value;
+    std::string out = temp.str();
+    out = out.substr(0, out.size() - 3);
+    return out;
+}
+
+inline std::string f_Pesccurve_name(int dx, int dy, double dz)
+{
+    std::string dzs = f_dz_string(dz);
+    std::ostringstream out;
+    out << "/home/gijs-hogeboom/dev/lwproj/data_input/Esc_curves/Esc_kext_curve_" << (int) dx << "_" << (int) dy << "_" << dzs << ".csv";
+    std::string filename = out.str();
+    return filename;
+}
+
+
+
+
+
+
+class LinearInterpolator_double {
+public:
+    LinearInterpolator_double(const std::vector<double>& x,
+                              const std::vector<double>& y)
+        : xs(x), ys(y)
+    {
+        if (xs.size() != ys.size() || xs.size() < 2) {
+            throw std::invalid_argument("x and y arrays must have same size >= 2");
+        }
+
+        // ensure strictly increasing x
+        for (size_t i = 1; i < xs.size(); ++i) {
+            if (xs[i] <= xs[i - 1]) {
+                throw std::invalid_argument("x values must be strictly increasing");
+            }
+        }
+    }
+
+    // interpolate y at value xq
+    inline double operator()(double xq) const {
+        // out-of-range -> throw
+        if (xq < xs.front() || xq > xs.back()) {
+            throw std::out_of_range("query x is outside interpolation range");
+        }
+
+        // find first element greater than xq
+        auto it = std::lower_bound(xs.begin(), xs.end(), xq);
+        
+        if (it == xs.begin())
+            return ys.front();
+        
+        if (it == xs.end())
+            return ys.back();
+
+        // indices of bounding interval
+        size_t i1 = it - xs.begin();
+        size_t i0 = i1 - 1;
+
+        double x0 = xs[i0], x1 = xs[i1];
+        double y0 = ys[i0], y1 = ys[i1];
+
+        // linear interpolation
+        double t = (xq - x0) / (x1 - x0);
+        return y0 + t * (y1 - y0);
+    }
+
+private:
+    std::vector<double> xs;
+    std::vector<double> ys;
+};
+
+
+
+inline std::size_t count_lines(std::fstream& file) {
+    std::size_t count = 0;
+    std::string line;
+
+    while (std::getline(file, line))
+        ++count;
+
+    return count;
+}

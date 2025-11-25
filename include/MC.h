@@ -20,4 +20,5 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           int Nsfc,
                           bool print_EB,
                           bool verbose,
-                          bool enable_full_counter_matrix);
+                          bool enable_full_counter_matrix,
+                          bool Pesc_mode);
