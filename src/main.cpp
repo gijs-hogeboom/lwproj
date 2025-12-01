@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 
     int N_mu = 100;                                // Number of angles to calculate at each height in PP-algorithm
 
-    bool enable_full_counter_matrix = true;
+    bool enable_full_counter_matrix = false;
 
 
 
@@ -91,8 +91,8 @@ int main(int argc, char* argv[])
     std::vector<double> arr_z;
     std::vector<double> arr_zh;
     std::vector<double> arr_dz;
-    std::vector<double> arr_kext;
-    std::vector<double> arr_Batm;
+    std::vector<double> field_atm_kext;
+    std::vector<double> field_atm_B;
     double Bsfc, dx, dy;
     int itot, jtot, ktot;
 
@@ -116,14 +116,33 @@ int main(int argc, char* argv[])
 
         // jtot, ktot, dx and dy are all predetermined in this case
         itot = arr_z.size();
-        jtot = 1;
-        ktot = 1;
+        jtot = 13;
+        ktot = 13;
+        int n_volumes = itot * jtot * ktot;
 
         dx = 100;
         dy = 100;
 
-        arr_kext = j["kext_" + CASE].get<std::vector<double>>();
-        arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
+        // Generating fields from 1D kext and Batm data
+        std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
+        std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
+
+        field_atm_kext.resize(n_volumes);
+        field_atm_B.resize(n_volumes);
+
+        for (int i = 0; i < itot; i++)
+        {
+            for (int j = 0; j < jtot; j++)
+            {
+                for (int k = 0; k < ktot; k++)
+                {
+                    int idx = i*jtot*ktot + j*ktot + k;
+                    field_atm_kext[idx] = arr_kext[i];
+                    field_atm_B[idx] = arr_Batm[i];
+                }
+            }
+        }
+
 
         Bsfc = j["Bsfc_" + CASE].get<double>();
     }
@@ -137,24 +156,28 @@ int main(int argc, char* argv[])
         itot = case_limits[0];
         jtot = case_limits[1];
         ktot = case_limits[2];
+        int n_volumes = itot * jtot * ktot;
 
         std::vector<int> cell_size_horizontal = j[CASE + "_cell_size_horizontal"].get<std::vector<int>>();
         dx = cell_size_horizontal[0];
         dy = cell_size_horizontal[1];
 
+        Bsfc = j[CASE + "_Bsfc"].get<double>();
+
         // Generating kext and Batm arrays
-        std::vector<double> col_kext_hom   = j[CASE + "_kext_hom"].get<std::vector<double>>();
+        std::vector<double> col_kext_open  = j[CASE + "_kext_open"].get<std::vector<double>>();
         std::vector<double> col_kext_cloud = j[CASE + "_kext_cloud"].get<std::vector<double>>();
-        std::vector<double> col_Batm_hom   = j[CASE + "_Batm_hom"].get<std::vector<double>>();
+        std::vector<double> col_Batm_open  = j[CASE + "_Batm_open"].get<std::vector<double>>();
         std::vector<double> col_Batm_cloud = j[CASE + "_Batm_cloud"].get<std::vector<double>>();
 
         std::vector<int> cloud_coords_x = j[CASE + "_cloud_coords_x"].get<std::vector<int>>();
         std::vector<int> cloud_coords_y = j[CASE + "_cloud_coords_y"].get<std::vector<int>>();
         int Ncloud_coords = cloud_coords_x.size();
+        int Nopen_coords  = jtot*ktot - Ncloud_coords;
 
-        std::vector<int> hom_coords_x(jtot*ktot - Ncloud_coords);
-        std::vector<int> hom_coords_y(jtot*ktot - Ncloud_coords);
-        int hom_idx = 0;
+        std::vector<int> open_coords_x(Nopen_coords);
+        std::vector<int> open_coords_y(Nopen_coords);
+        int open_idx = 0;
         for (int j = 0; j < jtot; j++)
         {
             for (int k = 0; k < ktot; k++)
@@ -169,18 +192,44 @@ int main(int argc, char* argv[])
                     bool is_cloud_column = ((j == cloud_y) && (k == cloud_x));
                     if (!is_cloud_column)
                     {
-                        hom_coords_x[hom_idx] = k;
-                        hom_coords_y[hom_idx] = j;
-                        hom_idx += 1;
+                        open_coords_x[open_idx] = k;
+                        open_coords_y[open_idx] = j;
+                        open_idx += 1;
                     }
                 }
             }
         }
 
         // Filling in the kext and batm arrays
+        field_atm_kext.resize(n_volumes);
+        field_atm_B.resize(n_volumes);
+        // Open columns
+        for (int idx_open = 0; idx_open < Nopen_coords; idx_open++)
+        {
+            int k = open_coords_x[idx_open];
+            int j = open_coords_y[idx_open];
+            for (int i = 0; i < itot; i++)
+            {
+                int idx = i*jtot*ktot + j*ktot + k;
 
+                field_atm_kext[idx] = col_kext_open[i];
+                field_atm_B[idx]    = col_Batm_open[i];
+            }
+        }
+        // Cloudy columns
+        for (int idx_cloud = 0; idx_cloud < Ncloud_coords; idx_cloud++)
+        {
+            int k = cloud_coords_x[idx_cloud];
+            int j = cloud_coords_y[idx_cloud];
+            for (int i = 0; i < itot; i++)
+            {
+                int idx = i*jtot*ktot + j*ktot + k;
 
-        Bsfc = j[CASE + "_Bsfc"].get<double>();
+                field_atm_kext[idx] = col_kext_cloud[i];
+                field_atm_B[idx]    = col_Batm_cloud[i];
+            }
+        }
+
     }
     
 
@@ -199,8 +248,8 @@ int main(int argc, char* argv[])
         heating_rates_MC = run_MC(arr_z,
                                 arr_zh,
                                 arr_dz,
-                                arr_kext,
-                                arr_Batm,
+                                field_atm_kext,
+                                field_atm_B,
                                 Bsfc,
                                 dx,
                                 dy,
@@ -245,8 +294,8 @@ int main(int argc, char* argv[])
         heating_rates_PP = run_plane_parallel(arr_z,
                                             arr_zh,
                                             arr_dz,
-                                            arr_kext,
-                                            arr_Batm,
+                                            field_atm_kext,
+                                            field_atm_B,
                                             Bsfc,
                                             N_mu,
                                             print_EB_PP,

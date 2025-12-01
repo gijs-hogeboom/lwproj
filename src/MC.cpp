@@ -390,8 +390,8 @@ void photon_propagation(const std::vector<int>& arr_photons_pos_idx,
 std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const std::vector<double>& arr_zh,
                           const std::vector<double>& arr_dz,
-                          const std::vector<double>& arr_kext,
-                          const std::vector<double>& arr_Batm,
+                          const std::vector<double>& field_atm_kext,
+                          const std::vector<double>& field_atm_B,
                           double Bsfc,
                           double dx,
                           double dy,
@@ -451,8 +451,6 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     }
 
     // Initializing optical property fields
-    std::vector<double> field_atm_kext(n_volumes);
-    std::vector<double> field_atm_B(n_volumes);
     std::vector<double> field_atm_phi(n_volumes);
     std::vector<double> field_sfc_B(n_tiles);
     std::vector<double> field_sfc_phi(n_tiles);
@@ -473,11 +471,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             for (int k = 0; k < ktot; k++)
             {
                 int idx_atm = i * ktot * jtot + j * ktot + k;
-                double current_kext = arr_kext[i];
-                double current_Batm = arr_Batm[i];
-
-                field_atm_kext[idx_atm] = current_kext;
-                field_atm_B[idx_atm] = current_Batm;
+                double current_kext = field_atm_kext[idx_atm];
+                double current_Batm = field_atm_B[idx_atm];
                 field_atm_phi[idx_atm] = 4*cdouble::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
                 
                 field_atm_emitted[idx_atm] = field_atm_phi[idx_atm]; // basically copying the power array
@@ -847,7 +842,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             double sum_arr_photons_sfc_phi = kahan_sum(arr_photons_sfc_phi);
             for (size_t idx_photon = 0; idx_photon < Natm; idx_photon++)
             {
-                arr_photons_atm_phi[idx_photon]    *= (sum_field_atm_phi / sum_arr_photons_atm_phi);
+                arr_photons_atm_phi[idx_photon] *= (sum_field_atm_phi / sum_arr_photons_atm_phi);
             }
             for (size_t idx_photon = 0; idx_photon < Nsfc; idx_photon++)
             {
@@ -1132,7 +1127,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         outside_cell_counter.resize(n_tot);
         inside_cell_counter.resize(n_tot);
     }
-    
+
 
     // Photons from the atmosphere
     photon_propagation(arr_photons_atm_pos_idx,
@@ -1210,8 +1205,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        inside_cell_counter,
                        Pesc_mode);
 
-    
-
+                       
     // Writing photon counter matrix/table
     std::vector<std::string> counter_axis(n_tot);
     // Write axis
@@ -1442,6 +1436,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 int idx_atm =  i * ktot * jtot + j * ktot + k;
                 int idx_horizontal = j*ktot + k;
                 horizontal_values[idx_horizontal] = field_atm_heating_rates[idx_atm];
+                if (arr_z[i] < 1000.) std::cout << i << ',' << j << ',' << k << "|  " << '\t' << field_atm_heating_rates[idx_atm] << std::endl;
             }
         }
         arr_atm_heating_rates_1D[i] = std::accumulate(horizontal_values.begin(), horizontal_values.end(), 0.0) / (jtot*ktot);

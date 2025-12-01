@@ -17,8 +17,8 @@ using namespace boost::math::quadrature;
 std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
                                       const std::vector<double>& arr_zh,
                                       const std::vector<double>& arr_dz,
-                                      const std::vector<double>& arr_kext,
-                                      const std::vector<double>& arr_Batm,
+                                      const std::vector<double>& field_atm_kext,
+                                      const std::vector<double>& field_atm_B,
                                       double Bsfc,
                                       int N_mu,
                                       bool print_EB,
@@ -31,8 +31,47 @@ std::vector<double> run_plane_parallel(const std::vector<double>& arr_z,
         std::cout << "  PP: Initializing domain" << std::endl;
     }
 
+    // Handling the fields into 1D
     int itot  = arr_z.size();
     int itoth = arr_zh.size();
+    int n_volumes = field_atm_kext.size();
+
+
+    std::vector<double> arr_kext(itot);
+    std::vector<double> arr_Batm(itot);
+
+    if (n_volumes > itot)
+    {
+        int jkstride = n_volumes / itot;
+
+        for (int i = 0; i < itot; i++)
+        {
+            std::vector<double> temp_kext(jkstride);
+            std::vector<double> temp_Batm(jkstride);
+            for (int jk = 0; jk < jkstride; jk++)
+            {
+                int idx = i*jkstride + jk;
+                temp_kext[jk] = field_atm_kext[idx];
+                temp_Batm[jk] = field_atm_B[idx];
+            }
+
+            arr_kext[i] = std::accumulate(temp_kext.begin(), temp_kext.end(), 0.0) / jkstride;
+            arr_Batm[i] = std::accumulate(temp_Batm.begin(), temp_Batm.end(), 0.0) / jkstride;
+
+            // std::cout << std::accumulate(temp_kext.begin(), temp_kext.end(), 0.0) / jkstride << std::endl;
+            // std::cout << std::accumulate(temp_Batm.begin(), temp_Batm.end(), 0.0) / jkstride << std::endl;
+        }
+    }
+    else
+    {
+        for (int i = 0; i < itot; i++)
+        {
+            arr_kext[i] = field_atm_kext[i];
+            arr_Batm[i] = field_atm_B[i];
+        }
+    }
+
+    
 
 
     // Generating tauh (cumulative sum of kext*dz from TOA to bottom)
