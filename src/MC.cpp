@@ -57,6 +57,9 @@ void photon_propagation(const AliasTable_double& aliastable,
 
     u_int64_t photon_not_tracked_counter = 0;
 
+
+    
+
     int idx_photon = 0;
     while (idx_photon < N)
     {
@@ -128,7 +131,6 @@ void photon_propagation(const AliasTable_double& aliastable,
         // Starting propegation...
         while (tau > 1e-10)
         {
-            
 
             // field boundary detection in x direction - wrapping
             bool at_far_wall_x     = (std::abs(x - x_max) < eps);
