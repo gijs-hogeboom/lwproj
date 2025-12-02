@@ -116,8 +116,8 @@ int main(int argc, char* argv[])
 
         // jtot, ktot, dx and dy are all predetermined in this case
         itot = arr_z.size();
-        jtot = 13;
-        ktot = 13;
+        jtot = 1;
+        ktot = 1;
         int n_volumes = itot * jtot * ktot;
 
         dx = 100;

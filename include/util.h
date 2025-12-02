@@ -213,16 +213,22 @@ struct FastRNG {
 struct AliasTable_double {
     std::vector<double> prob;
     std::vector<int> alias;
+    std::vector<double> weights;
     int n;
 
-    AliasTable_double(const std::vector<double>& weights) {
-        n = weights.size();
+    AliasTable_double(const std::vector<double>& weights_in) {
+        n = weights_in.size();
         prob.resize(n);
         alias.resize(n);
 
-        std::vector<double> scaled(weights);
+        std::vector<double> scaled(weights_in);
         double sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
         for (auto& w : scaled) w *= n / sum;
+
+        weights.resize(n);
+        for (int i = 0; i < n; i++) weights[i] = weights_in[i] / sum;
+        
+
 
         std::queue<int> small, large;
         for (int i = 0; i < n; ++i)
@@ -252,16 +258,20 @@ struct AliasTable_double {
 struct AliasTable_float {
     std::vector<float> prob;
     std::vector<int> alias;
+    std::vector<float> weights;
     int n;
 
-    AliasTable_float(const std::vector<float>& weights) {
-        n = weights.size();
+    AliasTable_float(const std::vector<float>& weights_in) {
+        n = weights_in.size();
         prob.resize(n);
         alias.resize(n);
 
-        std::vector<float> scaled(weights);
+        std::vector<float> scaled(weights_in);
         float sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
         for (auto& w : scaled) w *= n / sum;
+
+        weights.resize(n);
+        for (int i = 0; i < n; i++) weights[i] = weights_in[i] / sum;
 
         std::queue<int> small, large;
         for (int i = 0; i < n; ++i)
