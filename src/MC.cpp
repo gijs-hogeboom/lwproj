@@ -54,7 +54,6 @@ void photon_propagation(const AliasTable_double& aliastable,
         photon_power = std::accumulate(field_phi.begin(), field_phi.end(), 0.0) / N;
     }
     
-    int idx_1_counter = 0;
 
     u_int64_t photon_not_tracked_counter = 0;
 
@@ -337,8 +336,6 @@ void photon_propagation(const AliasTable_double& aliastable,
         std::cout << "!!!!!!!!!! WARNING !!!!!!!!!    " << photon_not_tracked_counter << " photons are not tracked!! " << std::endl;
     }
 
-
-    std::cout << domain_section << ',' << idx_1_counter << std::endl;
 }
 
 
