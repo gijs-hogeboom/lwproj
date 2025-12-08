@@ -16,7 +16,7 @@
 
 
 void photon_propagation(const AliasTable_double& aliastable,
-                        FastRNG rng,
+                        FastRNG& rng,
                         const std::vector<double>& field_kext,
                         const std::vector<double>& arr_xh,
                         const std::vector<double>& arr_yh,
@@ -53,18 +53,13 @@ void photon_propagation(const AliasTable_double& aliastable,
     {
         photon_power = std::accumulate(field_phi.begin(), field_phi.end(), 0.0) / N;
     }
-    
-
-    u_int64_t photon_not_tracked_counter = 0;
 
 
-    
 
-    int idx_photon = 0;
-    while (idx_photon < N)
+    for (int idx_photon = 0; idx_photon < N; idx_photon++)
     {
-        // Tracking wheter each photon is accounted for inside the photon counter matrix
-        bool photon_is_tracked = false;
+
+        bool track_this_photon = false;
 
         // Tracking whether photon leaves the cell
         bool out_of_cell = false;
@@ -74,6 +69,7 @@ void photon_propagation(const AliasTable_double& aliastable,
         // Sampling location within domain, determining photon power
         int idx_flat = aliastable.sample(rng);
         int idx_original = idx_flat; // storing starting position
+
 
         if (!(INTERCELL_TECHNIQUE == "power"))
         {
@@ -85,6 +81,7 @@ void photon_propagation(const AliasTable_double& aliastable,
         // Initializing position/direction/optical thickness
         int idx_z, idx_y, idx_x;
         double x, y, z, mu, az, tau;
+
 
         if (domain_section == 0)
         {
@@ -181,8 +178,6 @@ void photon_propagation(const AliasTable_double& aliastable,
                 {
                     field_sfc_net_phi[idx_original] -= photon_power;
                 }
-
-                photon_is_tracked = true;
                 break;
             }
             bool at_surface        = (std::abs(z) < eps);
@@ -200,8 +195,6 @@ void photon_propagation(const AliasTable_double& aliastable,
                 {
                     field_sfc_net_phi[idx_original] -= photon_power;
                 }
-
-                photon_is_tracked = true;
                 break;
             }
 
@@ -274,15 +267,14 @@ void photon_propagation(const AliasTable_double& aliastable,
             }
 
 
+
             // Calculating distance traveled
-            double ds = sqrt(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
-            double max_s = tau/current_kext;
+            double ds           = sqrt(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
+            double max_s        = tau/current_kext;
             double tau_absorbed = current_kext*ds;
 
-
-            if (ds < max_s)
+            if (Pesc_mode && !out_of_cell)
             {
-                tau -= tau_absorbed;
                 x += dist_x;
                 y += dist_y;
                 z += dist_z;
@@ -291,53 +283,41 @@ void photon_propagation(const AliasTable_double& aliastable,
             }
             else
             {
-                tau = 0.;
-                double fs = max_s / ds;
-                x += dist_x*fs;
-                y += dist_y*fs;
-                z += dist_z*fs;
-
-                if (out_of_cell)
+                if (ds < max_s)
                 {
-                    field_atm_net_phi[idx_flat] += photon_power;
-                    if (domain_section == 0)
+                    tau -= tau_absorbed;
+                    x += dist_x;
+                    y += dist_y;
+                    z += dist_z;
+
+                    out_of_cell = true;
+                }
+                else
+                {
+                    tau = 0.;
+                    double fs = max_s / ds;
+                    x += dist_x*fs;
+                    y += dist_y*fs;
+                    z += dist_z*fs;
+
+                    
+
+                    if (out_of_cell)
                     {
-                        field_atm_net_phi[idx_original] -= photon_power;
-                    } else if (domain_section == 1)
-                    {
-                        field_sfc_net_phi[idx_original] -= photon_power;
+                        field_atm_net_phi[idx_flat] += photon_power;
+                        if (domain_section == 0)
+                        {
+                            field_atm_net_phi[idx_original] -= photon_power;
+                        } else if (domain_section == 1)
+                        {
+                            field_sfc_net_phi[idx_original] -= photon_power;
+                        }
                     }
                 }
-
-                photon_is_tracked = true;
             }
-            
             counter++;
         }
-
-        // Photon tracking metric
-        if (!photon_is_tracked)
-        {
-            photon_not_tracked_counter++;
-        }
-
-        // Counting to the next photon
-        if (Pesc_mode)
-        {
-            // For Pesc mode, only count to the next photon if the photon actually crossed cell boundaries
-            if (out_of_cell) idx_photon++;
-        }
-        else
-        {
-            idx_photon++;
-        }
     }
-
-    if (photon_not_tracked_counter > 0)
-    {
-        std::cout << "!!!!!!!!!! WARNING !!!!!!!!!    " << photon_not_tracked_counter << " photons are not tracked!! " << std::endl;
-    }
-
 }
 
 
@@ -358,7 +338,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const std::vector<double>& arr_dz,
                           const std::vector<double>& field_atm_kext,
                           const std::vector<double>& field_atm_B,
-                          const double Bsfc,
+                          const std::vector<double>& field_sfc_B,
                           const double dx,
                           const double dy,
                           const int ktot,
@@ -372,7 +352,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const bool print_EB,
                           const bool verbose,
                           const bool enable_full_counter_matrix,
-                          const bool Pesc_mode)
+                          const bool Pesc_mode,
+                          const std::string& OUTPUT_MODE)
 {
 
     ///////////////////// INITIALIZING DOMAIN ///////////////////////
@@ -416,11 +397,11 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         }
     }
 
+
     // Initializing optical property fields
     std::vector<double> field_atm_phi(n_volumes);
     std::vector<double> field_atm_netto_power(n_volumes);
 
-    std::vector<double> field_sfc_B(n_tiles);
     std::vector<double> field_sfc_phi(n_tiles);
     std::vector<double> field_sfc_eps(n_tiles, 1.0);
     std::vector<double> field_sfc_netto_power(n_tiles);
@@ -444,8 +425,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 if (i == 0)
                 {
                     int idx_sfc = j * ktot + k;
-                    field_sfc_B[idx_sfc] = Bsfc;
-                    field_sfc_phi[idx_sfc] = cdouble::PI * field_sfc_eps[idx_sfc] * Bsfc * dx * dy;
+                    field_sfc_phi[idx_sfc] = cdouble::PI * field_sfc_eps[idx_sfc] * field_sfc_B[idx_sfc] * dx * dy;
                 }
             }
         }
@@ -703,7 +683,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        0,
                        INTERCELL_TECHNIQUE,
                        Pesc_mode);
-    
+
     if (verbose)
     {
         std::cout << "  MC: Photon release - sfc" << std::endl;
@@ -760,7 +740,38 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     }
 
 
+    // Output
+    if (OUTPUT_MODE == "3D")
+    {
+        std::string atm_output_name = "hr_3D_atm_"   + CASE + "_Natm" + std::to_string((int) std::log2(Natm)) + "_Nsfc" + std::to_string((int) std::log2(Nsfc)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
+        std::string sfc_output_name = "flux_3D_sfc_" + CASE + "_Natm" + std::to_string((int) std::log2(Natm)) + "_Nsfc" + std::to_string((int) std::log2(Nsfc)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
+        std::string TOA_output_name = "flux_3D_TOA_" + CASE + "_Natm" + std::to_string((int) std::log2(Natm)) + "_Nsfc" + std::to_string((int) std::log2(Nsfc)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
+        std::ofstream atm_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + atm_output_name, std::ios::binary);
+        std::ofstream sfc_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + sfc_output_name, std::ios::binary);
+        std::ofstream TOA_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + TOA_output_name, std::ios::binary);
+        int atm_dims[3] = {itot, jtot, ktot};
+        int sfc_dims[2] = {jtot, ktot};
+        std::vector<float> field_atm_heating_rates_f(field_atm_heating_rates.begin(), field_atm_heating_rates.end());
+        std::vector<float> field_sfc_netto_power_f(field_sfc_netto_power.begin(), field_sfc_netto_power.end());
+        std::vector<float> field_TOA_netto_power_f(field_TOA_netto_power.begin(), field_TOA_netto_power.end());
+
+        
+
+        atm_output.write(reinterpret_cast<char*>(atm_dims), sizeof(atm_dims));
+        atm_output.write(reinterpret_cast<char*>(field_atm_heating_rates.data()), sizeof(double)*itot*jtot*ktot);
+        sfc_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
+        sfc_output.write(reinterpret_cast<char*>(field_sfc_netto_power.data()), sizeof(double)*jtot*ktot);
+        TOA_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
+        TOA_output.write(reinterpret_cast<char*>(field_TOA_netto_power.data()), sizeof(double)*jtot*ktot);
+        atm_output.close();
+        sfc_output.close();
+        TOA_output.close();
+    }
+
+
+    // Making 1D for comparing against plane-parallel
     std::vector<double> arr_atm_heating_rates_1D(itot);
+
     // Averaging the horizontal directions
     for (int i = 0; i < itot; i++)
     {

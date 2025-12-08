@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
 
 
     // Handling input
-    std::string arg1 = "gpt3";
+    std::string arg1 = "gpt21";
     std::string arg2 = "power";
     int arg3 = 21;
     bool arg4 = false;
@@ -66,9 +66,9 @@ int main(int argc, char* argv[])
 
     bool Pesc_mode = arg4;
 
-    int N_mu = 100;                                // Number of angles to calculate at each height in PP-algorithm
-
     bool enable_full_counter_matrix = false;
+
+    std::string OUTPUT_MODE = "3D";               // {1D, 3D}
 
 
 
@@ -93,17 +93,20 @@ int main(int argc, char* argv[])
     std::vector<double> arr_dz;
     std::vector<double> field_atm_kext;
     std::vector<double> field_atm_B;
+    std::vector<double> field_sfc_B;
     double Bsfc, dx, dy;
     int itot, jtot, ktot;
 
     // Reading the case json file
     std::string caseID = CASE.substr(0, 3);
-    std::fstream file_cases("/home/gijs-hogeboom/dev/lwproj/data_input/" + caseID + "cases.json");
+    std::fstream file_cases("/home/gijs-hogeboom/dev/mclw/data_input/" + caseID + "cases.json");
+    
     if (!file_cases.is_open())
     {
         std::cerr << "Could not open " + caseID + "cases.json!" << std::endl;
         return 1;
     }
+    
     nlohmann::json j;
     file_cases >> j;
 
@@ -116,9 +119,10 @@ int main(int argc, char* argv[])
 
         // jtot, ktot, dx and dy are all predetermined in this case
         itot = arr_z.size();
-        jtot = 1;
-        ktot = 1;
+        jtot = 11;
+        ktot = 11;
         int n_volumes = itot * jtot * ktot;
+        int n_tiles = jtot * ktot;
 
         dx = 100;
         dy = 100;
@@ -126,9 +130,11 @@ int main(int argc, char* argv[])
         // Generating fields from 1D kext and Batm data
         std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
         std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
+        Bsfc = j["Bsfc_" + CASE].get<double>();
 
         field_atm_kext.resize(n_volumes);
         field_atm_B.resize(n_volumes);
+        field_sfc_B.resize(n_tiles);
 
         for (int i = 0; i < itot; i++)
         {
@@ -139,12 +145,12 @@ int main(int argc, char* argv[])
                     int idx = i*jtot*ktot + j*ktot + k;
                     field_atm_kext[idx] = arr_kext[i];
                     field_atm_B[idx] = arr_Batm[i];
+                    if (i == 0) field_sfc_B[idx] = Bsfc;
                 }
             }
         }
 
 
-        Bsfc = j["Bsfc_" + CASE].get<double>();
     }
     else if (caseID == "s3D") // simple 3D cases
     {
@@ -157,6 +163,7 @@ int main(int argc, char* argv[])
         jtot = case_limits[1];
         ktot = case_limits[2];
         int n_volumes = itot * jtot * ktot;
+        int n_tiles = jtot * ktot;
 
         std::vector<int> cell_size_horizontal = j[CASE + "_cell_size_horizontal"].get<std::vector<int>>();
         dx = cell_size_horizontal[0];
@@ -175,6 +182,7 @@ int main(int argc, char* argv[])
         int Ncloud_coords = cloud_coords_x.size();
         int Nopen_coords  = jtot*ktot - Ncloud_coords;
 
+
         std::vector<int> open_coords_x(Nopen_coords);
         std::vector<int> open_coords_y(Nopen_coords);
         int open_idx = 0;
@@ -182,21 +190,32 @@ int main(int argc, char* argv[])
         {
             for (int k = 0; k < ktot; k++)
             {
-
                 // going through each cloud coord pair
+                bool is_cloud_column = false;
                 for (int idx_cloud = 0; idx_cloud < Ncloud_coords; idx_cloud++)
                 {
                     int cloud_x = cloud_coords_x[idx_cloud];
                     int cloud_y = cloud_coords_y[idx_cloud];
 
-                    bool is_cloud_column = ((j == cloud_y) && (k == cloud_x));
-                    if (!is_cloud_column)
-                    {
-                        open_coords_x[open_idx] = k;
-                        open_coords_y[open_idx] = j;
-                        open_idx += 1;
-                    }
+                    if ((j == cloud_y) && (k == cloud_x)) {is_cloud_column = true; break; }
                 }
+
+                if (!is_cloud_column)
+                {
+                    open_coords_x[open_idx] = k;
+                    open_coords_y[open_idx] = j;
+                    open_idx += 1;
+                }
+            }
+        }
+
+        field_sfc_B.resize(n_tiles);
+        for (int j = 0; j < jtot; j++)
+        {
+            for (int k = 0; k < ktot; k++)
+            {
+                int idx_sfc = j*ktot + k;
+                field_sfc_B[idx_sfc] = Bsfc;
             }
         }
 
@@ -231,6 +250,27 @@ int main(int argc, char* argv[])
         }
 
     }
+    else if (caseID == "r3D") // "Real" 3D cases (from the gpoints data)
+    {
+        arr_z = j["z"].get<std::vector<double>>();
+        arr_zh = j["zh"].get<std::vector<double>>();
+        arr_dz = j["dz"].get<std::vector<double>>();
+
+        int xy_size = j["xy_size"].get<int>();
+        itot = arr_z.size();
+        jtot = xy_size;
+        ktot = xy_size;
+
+        dx = 100;
+        dy = 100;
+
+        field_atm_B    = j["Batm_" + CASE].get<std::vector<double>>();
+        field_atm_kext = j["kext_" + CASE].get<std::vector<double>>();
+        field_sfc_B    = j["Bsfc_" + CASE].get<std::vector<double>>();
+        
+
+    }
+
     
 
         
@@ -250,7 +290,7 @@ int main(int argc, char* argv[])
                                 arr_dz,
                                 field_atm_kext,
                                 field_atm_B,
-                                Bsfc,
+                                field_sfc_B,
                                 dx,
                                 dy,
                                 ktot,
@@ -264,10 +304,11 @@ int main(int argc, char* argv[])
                                 print_EB_MC,
                                 verbose,
                                 enable_full_counter_matrix,
-                                Pesc_mode);
+                                Pesc_mode,
+                                OUTPUT_MODE);
         
         // Storing output
-        std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
+        std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
         if (!file_MCoutput.is_open())
         {
             std::cerr << "Error: cannot open MC output file!" << std::endl;
@@ -297,13 +338,13 @@ int main(int argc, char* argv[])
                                             field_atm_kext,
                                             field_atm_B,
                                             Bsfc,
-                                            N_mu,
+                                            100,
                                             print_EB_PP,
                                             verbose);
         
         // Storing output
         
-        std::ofstream file_PPoutput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_PP_" + CASE + ".csv");
+        std::ofstream file_PPoutput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_PP_" + CASE + ".csv");
         if (!file_PPoutput.is_open())
         {
             std::cerr << "Error: cannot open PP output file!" << std::endl;
@@ -327,8 +368,8 @@ int main(int argc, char* argv[])
     std::vector<double> heating_rates_MC_in(itot, 0.);
     std::vector<double> arr_z_in(itot, 0.);
 
-    std::fstream file_MCinput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
-    std::fstream file_PPinput("/home/gijs-hogeboom/dev/lwproj/data_output/heating_rates/HR_PP_" + CASE + ".csv");
+    std::fstream file_MCinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
+    std::fstream file_PPinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_PP_" + CASE + ".csv");
     
     if (!file_MCinput.is_open())
     {
@@ -423,7 +464,6 @@ int main(int argc, char* argv[])
         std::cout << "Parameters:" << std::endl;
         std::cout << "   | Natm:        " << Natm_pow << std::endl;
         std::cout << "   | Nsfc:        " << Nsfc_pow << std::endl;
-        std::cout << "   | N_Mu:        " << N_mu << std::endl;
         std::cout << "Timers:" << std::endl;
         std::cout << "   | MC time:     " << MC_time.count()/1000 << std::endl;
         std::cout << "   | PP time:     " << PP_time.count()/1000 << std::endl;

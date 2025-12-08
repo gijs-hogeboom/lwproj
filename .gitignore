@@ -16,8 +16,9 @@ Makefile
 .idea/
 *.swp
 
-# Bash files
+# Other code files
 *.sh
 
 # Certain data files
 *.csv
+*.json
