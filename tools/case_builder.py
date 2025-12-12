@@ -26,18 +26,24 @@ cloud_coords_y = [ y for x in range(cloud_center - cloud_r, cloud_center + cloud
 # Homogeneous column
 def f_kext_open(z):
     a = -0.0005
-    b = 0.0001
-    return 10**(a*z + b)
+    b = 0.01
+    return 10**(a*z + b)/1000
 
 def f_B_open(z):
-    a = -0.0008
-    b = 5
-    return a*z + b
-    
+    return 0.1
+
+def f_SSA_open(z):
+    return 0.
+
+def f_ASY_open(z):
+    return 0.
+
 
 # Cloudy column
-kext_cloud = 1
-B_cloud = 10
+kext_cloud = 0.6
+B_cloud = 0.3
+SSA_cloud = 0.4
+ASY_cloud = 0.75
 
 cloud_height_lower = 1000
 cloud_height_upper = 1400
@@ -48,11 +54,26 @@ def f_kext_cloud(z):
     else:
         return f_kext_open(z)
 
+
 def f_B_cloud(z):
     if ((z >= cloud_height_lower) and (z <= cloud_height_upper)):
         return B_cloud
     else:
         return f_B_open(z)
+
+
+def f_SSA_cloud(z):
+    if ((z >= cloud_height_lower) and (z <= cloud_height_upper)):
+        return SSA_cloud
+    else:
+        return f_SSA_open(z)
+
+
+def f_ASY_cloud(z):
+    if ((z >= cloud_height_lower) and (z <= cloud_height_upper)):
+        return ASY_cloud
+    else:
+        return f_ASY_open(z)
     
 
 arr_zh = np.arange(0, itot*dz + dz, dz)
@@ -60,17 +81,21 @@ arr_z  = np.arange(dz/2, itot*dz + dz/2, dz)
 arr_dz = np.array( [arr_zh[i+1] - arr_zh[i] for i in range(len(arr_z))] )
 
 
-arr_kext_open   = np.array( [f_kext_open(z) for z in arr_z] )
+arr_kext_open  = np.array( [f_kext_open(z) for z in arr_z] )
 arr_kext_cloud = np.array( [f_kext_cloud(z) for z in arr_z] )
-arr_Batm_open   = np.array( [f_B_open(z) for z in arr_z] )
+arr_Batm_open  = np.array( [f_B_open(z) for z in arr_z] )
 arr_Batm_cloud = np.array( [f_B_cloud(z) for z in arr_z] )
+arr_SSA_open   = np.array( [f_SSA_open(z) for z in arr_z] )
+arr_SSA_cloud  = np.array( [f_SSA_cloud(z) for z in arr_z] )
+arr_ASY_open   = np.array( [f_ASY_open(z) for z in arr_z] )
+arr_ASY_cloud  = np.array( [f_ASY_cloud(z) for z in arr_z] )
 
-Bsfc = arr_Batm_open[0]
+Bsfc = arr_Batm_open[0]*10
 
-print(arr_kext_open)
+
 print(arr_kext_cloud)
-print(arr_Batm_open)
 print(arr_Batm_cloud)
+
 
 dct_case = {
     'case_limits':[itot, jtot, ktot],
@@ -82,6 +107,10 @@ dct_case = {
     'kext_cloud':arr_kext_cloud,
     'Batm_open':arr_Batm_open,
     'Batm_cloud':arr_Batm_cloud,
+    'SSA_open':arr_SSA_open,
+    'SSA_cloud':arr_SSA_cloud,
+    'ASY_open':arr_ASY_open,
+    'ASY_cloud':arr_ASY_cloud,
     'Bsfc':Bsfc,
     'cloud_coords_x':cloud_coords_x,
     'cloud_coords_y':cloud_coords_y
@@ -103,9 +132,6 @@ with open("s3Dcases.json", 'w') as f:
 path = '/home/gijs-hogeboom/dev/mclw/data_input'
 with open(os.path.join(path,"s3Dcases.json"), 'w') as f:
     json.dump(dct_out, f)
-
-
-
 
 
 

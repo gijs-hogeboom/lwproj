@@ -16,6 +16,7 @@ add_executable(lwproj
     src/main.cpp
     src/plane_parallel.cpp
     src/MC.cpp
+    src/photprop.cpp
 )
 
 # Include directories

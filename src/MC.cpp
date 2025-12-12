@@ -12,323 +12,7 @@
 #include <chrono>
 
 #include "util.h"
-
-
-
-void photon_propagation(const AliasTable_double& aliastable,
-                        FastRNG& rng,
-                        const std::vector<double>& field_kext,
-                        const std::vector<double>& arr_xh,
-                        const std::vector<double>& arr_yh,
-                        const std::vector<double>& arr_zh,
-                        const std::vector<double>& arr_x,
-                        const std::vector<double>& arr_y,
-                        const std::vector<double>& arr_z,
-                        const std::vector<double>& arr_dz,
-                        std::vector<double>& field_phi,
-                        std::vector<double>& field_atm_net_phi,
-                        std::vector<double>& field_sfc_net_phi,
-                        std::vector<double>& field_TOA_net_phi,
-                        const int N,
-                        const int domain_section,
-                        const std::string& INTERCELL_TECHNIQUE,
-                        const bool Pesc_mode)
-{
-
-    const int itot = arr_z.size();
-    const int jtot = arr_y.size();
-    const int ktot = arr_x.size();
-    const double x_max = arr_xh[ktot];
-    const double y_max = arr_yh[jtot];
-    const double z_max = arr_zh[itot];
-    const double cell_dx = arr_xh[1] - arr_xh[0];
-    const double cell_dy = arr_yh[1] - arr_yh[0];
-    
-    const double eps = 2e-5;
-    const int jktot = jtot*ktot;
-
-    double photon_power;
-
-    if (INTERCELL_TECHNIQUE == "power")
-    {
-        photon_power = std::accumulate(field_phi.begin(), field_phi.end(), 0.0) / N;
-    }
-
-
-
-    for (int idx_photon = 0; idx_photon < N; idx_photon++)
-    {
-
-        bool track_this_photon = false;
-
-        // Tracking whether photon leaves the cell
-        bool out_of_cell = false;
-        if (domain_section == 1) out_of_cell = true; // Surface photons are always "out" of the surface
-
-        
-        // Sampling location within domain, determining photon power
-        int idx_flat = aliastable.sample(rng);
-        int idx_original = idx_flat; // storing starting position
-
-
-        if (!(INTERCELL_TECHNIQUE == "power"))
-        {
-            double sample_weight = aliastable.weights[idx_flat];
-            photon_power = field_phi[idx_flat] / (sample_weight * N); // either field_atm_phi or field_sfc_phi
-        }
-
-
-        // Initializing position/direction/optical thickness
-        int idx_z, idx_y, idx_x;
-        double x, y, z, mu, az, tau;
-
-
-        if (domain_section == 0)
-        {
-            // Atmosphere
-            idx_z  = idx_flat / jktot;
-            int idx_2D = idx_flat % jktot;
-            idx_y  = idx_2D / ktot;
-            idx_x  = idx_2D % ktot;
-
-            x = (idx_x + rng.uniform()) * cell_dx;
-            y = (idx_y + rng.uniform()) * cell_dy;
-            z = arr_zh[idx_z] + rng.uniform()*arr_dz[idx_z];
-
-            mu = rng.uniform()*2 - 1;
-            az = rng.uniform()*2*cdouble::PI;
-
-            tau = -std::log(rng.uniform());
-        }
-        else if (domain_section == 1)
-        {
-            // Surface
-            idx_z = 0;
-            idx_y = idx_flat / ktot;
-            idx_x = idx_flat % ktot;
-
-            x = (idx_x + rng.uniform()) * cell_dx;
-            y = (idx_y + rng.uniform()) * cell_dy;
-            z = 0.;
-
-            mu = std::sqrt(rng.uniform());
-            az = rng.uniform()*2*cdouble::PI;
-
-            tau = -std::log(rng.uniform());
-        }
-
-        // Calculating cartesian direction vector
-        double s = std::sqrt(1 - mu*mu);
-        double dx = s*std::cos(az);
-        double dy = s*std::sin(az);
-        double dz = mu;
-        
-        int counter = 0;
-        
-        // Starting propegation...
-        while (tau > 1e-10)
-        {
-
-            // field boundary detection in x direction - wrapping
-            bool at_far_wall_x     = (std::abs(x - x_max) < eps);
-            bool going_forwards_x  = (dx >= 0.);
-            if (at_far_wall_x && going_forwards_x) 
-            { 
-                x = 0.;
-                idx_x = 0;
-            }
-            bool at_near_wall_x    = (std::abs(x) < eps);
-            bool going_backwards_x = (dx < 0.);
-            if (at_near_wall_x && going_backwards_x) 
-            { 
-                x = x_max; 
-                idx_x = ktot - 1;
-            }
-
-            // field boundary detection in y direction - wrapping
-            bool at_far_wall_y     = (std::abs(y - y_max) < eps);
-            bool going_forwards_y  = (dy >= 0.);
-            if (at_far_wall_y && going_forwards_y) 
-            { 
-                y = 0.; 
-                idx_y = 0;
-            }
-            bool at_near_wall_y    = (std::abs(y) < eps);
-            bool going_backwards_y = (dy < 0.);
-            if (at_near_wall_y && going_backwards_y) 
-            { 
-                y = y_max; 
-                idx_y = jtot - 1;
-            }
-
-
-            // field boundary detection in z direction - loss through TOA or absorbtion by surface
-            bool at_TOA            = (std::abs(z - z_max) < eps);
-            bool going_up          = (dz >= 0.);
-            if (at_TOA && going_up)
-            {
-                tau = 0.;
-                int idx_tile = idx_y * ktot + idx_x;
-
-                field_TOA_net_phi[idx_tile] += photon_power;
-                if (domain_section == 0)
-                {
-                    field_atm_net_phi[idx_original] -= photon_power;
-                } else if (domain_section == 1)
-                {
-                    field_sfc_net_phi[idx_original] -= photon_power;
-                }
-                break;
-            }
-            bool at_surface        = (std::abs(z) < eps);
-            bool going_down        = (dz < 0.);
-            if (at_surface && going_down)
-            {
-                tau = 0.;
-                int idx_tile = idx_y * ktot + idx_x;
-                
-                field_sfc_net_phi[idx_tile] += photon_power;
-                if (domain_section == 0)
-                {
-                    field_atm_net_phi[idx_original] -= photon_power;
-                } else if (domain_section == 1)
-                {
-                    field_sfc_net_phi[idx_original] -= photon_power;
-                }
-                break;
-            }
-
-            // Updating position
-            idx_flat = idx_z*jktot + idx_y*ktot + idx_x;
-            
-            // Loading kext
-            double current_kext = field_kext[idx_flat];
-
-
-
-            // Scanning collision with cell boundaries
-            double time_x, time_y, time_z;
-            double dnx, dny, dnz;
-
-            if (dx >= 0.) // x
-            {
-                dnx = arr_xh[idx_x + 1] - x;
-            } else {
-                dnx = arr_xh[idx_x] - x;
-            }
-            time_x = dnx/dx;
-
-            if (dy >= 0.) // y
-            {
-                dny = arr_yh[idx_y + 1] - y;
-            } else {
-                dny = arr_yh[idx_y] - y;
-            }
-            time_y = dny/dy;
-
-            if (dz >= 0.) // z
-            {
-                dnz = arr_zh[idx_z + 1] - z;
-            } else {
-                dnz = arr_zh[idx_z] - z;
-            }
-            time_z = dnz/dz;
-
-
-
-            // Determinig the scaling factor based on which cell is hit (i.e., which direction takes the least amount of time)
-            // Additionally, updating photon index position for next iteration (if photon extincts within the cell, the idx will not be used anyways)
-            double dist_x, dist_y, dist_z;
-
-            bool hit_x_wall = ((time_x <= time_y) && (time_x <= time_z));
-            bool hit_y_wall = ((time_y <= time_x) && (time_y <= time_z));
-            bool hit_z_wall = ((time_z <= time_x) && (time_z <= time_y));
-
-            if (hit_x_wall)
-            {
-                dist_x = dnx;
-                dist_y = time_x * dy;
-                dist_z = time_x * dz;
-                if (going_forwards_x) {idx_x += 1;} else {idx_x -= 1;}
-            }
-            else if (hit_y_wall)
-            {
-                dist_x = time_y * dx;
-                dist_y = dny;
-                dist_z = time_y * dz;
-                if (going_forwards_y) {idx_y += 1;} else {idx_y -= 1;}
-            }
-            else if (hit_z_wall)
-            {
-                dist_x = time_z * dx;
-                dist_y = time_z * dy;
-                dist_z = dnz;
-                if (going_up) {idx_z += 1;} else {idx_z -= 1;}
-            }
-
-
-
-            // Calculating distance traveled
-            double ds           = sqrt(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
-            double max_s        = tau/current_kext;
-            double tau_absorbed = current_kext*ds;
-
-            if (Pesc_mode && !out_of_cell)
-            {
-                x += dist_x;
-                y += dist_y;
-                z += dist_z;
-
-                out_of_cell = true;
-            }
-            else
-            {
-                if (ds < max_s)
-                {
-                    tau -= tau_absorbed;
-                    x += dist_x;
-                    y += dist_y;
-                    z += dist_z;
-
-                    out_of_cell = true;
-                }
-                else
-                {
-                    tau = 0.;
-                    double fs = max_s / ds;
-                    x += dist_x*fs;
-                    y += dist_y*fs;
-                    z += dist_z*fs;
-
-                    
-
-                    if (out_of_cell)
-                    {
-                        field_atm_net_phi[idx_flat] += photon_power;
-                        if (domain_section == 0)
-                        {
-                            field_atm_net_phi[idx_original] -= photon_power;
-                        } else if (domain_section == 1)
-                        {
-                            field_sfc_net_phi[idx_original] -= photon_power;
-                        }
-                    }
-                }
-            }
-            counter++;
-        }
-    }
-}
-
-
-
-
-
-
-
-
-
-
+#include "photprop.h"
 
 
 
@@ -339,6 +23,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const std::vector<double>& field_atm_kext,
                           const std::vector<double>& field_atm_B,
                           const std::vector<double>& field_sfc_B,
+                          const std::vector<double>& field_atm_SSA,
+                          const std::vector<double>& field_atm_ASY,
                           const double dx,
                           const double dy,
                           const int ktot,
@@ -347,8 +33,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const std::string& INTERCELL_TECHNIQUE,
                           const std::string& INTRACELL_TECHNIQUE,
                           const std::string& CASE,
-                          const int Natm,
-                          const int Nsfc,
+                          const int Nphot,
                           const bool print_EB,
                           const bool verbose,
                           const bool enable_full_counter_matrix,
@@ -508,14 +193,24 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         }
     }
 
+    // Partitioning photons between Atm and Sfc
+    double phi_atm_total = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0);
+    double phi_sfc_total = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0);
+    double phi_ratio_atm = phi_atm_total / (phi_atm_total + phi_sfc_total);
+
+    int Natm = (int)  (phi_ratio_atm * Nphot);  
+    int Nsfc = Nphot - Natm;
+
+    if (verbose)
+    {
+        std::cout << "  MC: Ratio Natm / Nsfc: " << phi_ratio_atm * 100.0 << '%' << std::endl;
+    }
 
 
 
 
 
-
-
-    /////////////////////////// SAMPLING /////////////////////////// 
+    /////////////////////////// ALIAS TABLES /////////////////////////// 
     
     if (verbose)
     {
@@ -668,6 +363,9 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     photon_propagation(AliasTable_atm,
                        rng,
                        field_atm_kext,
+                       field_sfc_eps,
+                    //    field_atm_SSA,
+                    //    field_atm_ASY,
                        arr_xh,
                        arr_yh,
                        arr_zh,
@@ -692,6 +390,9 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     photon_propagation(AliasTable_sfc,
                        rng,
                        field_atm_kext,
+                       field_sfc_eps,
+                    //    field_atm_SSA,
+                    //    field_atm_ASY,
                        arr_xh,
                        arr_yh,
                        arr_zh,
@@ -743,9 +444,9 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     // Output
     if (OUTPUT_MODE == "3D")
     {
-        std::string atm_output_name = "hr_3D_atm_"   + CASE + "_Natm" + std::to_string((int) std::log2(Natm)) + "_Nsfc" + std::to_string((int) std::log2(Nsfc)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
-        std::string sfc_output_name = "flux_3D_sfc_" + CASE + "_Natm" + std::to_string((int) std::log2(Natm)) + "_Nsfc" + std::to_string((int) std::log2(Nsfc)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
-        std::string TOA_output_name = "flux_3D_TOA_" + CASE + "_Natm" + std::to_string((int) std::log2(Natm)) + "_Nsfc" + std::to_string((int) std::log2(Nsfc)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
+        std::string atm_output_name = "hr_3D_atm_"   + CASE + "_Nphot" + std::to_string((int) std::log2(Nphot)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
+        std::string sfc_output_name = "flux_3D_sfc_" + CASE + "_Nphot" + std::to_string((int) std::log2(Nphot)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
+        std::string TOA_output_name = "flux_3D_TOA_" + CASE + "_Nphot" + std::to_string((int) std::log2(Nphot)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
         std::ofstream atm_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + atm_output_name, std::ios::binary);
         std::ofstream sfc_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + sfc_output_name, std::ios::binary);
         std::ofstream TOA_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + TOA_output_name, std::ios::binary);
@@ -754,9 +455,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         std::vector<float> field_atm_heating_rates_f(field_atm_heating_rates.begin(), field_atm_heating_rates.end());
         std::vector<float> field_sfc_netto_power_f(field_sfc_netto_power.begin(), field_sfc_netto_power.end());
         std::vector<float> field_TOA_netto_power_f(field_TOA_netto_power.begin(), field_TOA_netto_power.end());
-
         
-
         atm_output.write(reinterpret_cast<char*>(atm_dims), sizeof(atm_dims));
         atm_output.write(reinterpret_cast<char*>(field_atm_heating_rates.data()), sizeof(double)*itot*jtot*ktot);
         sfc_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
@@ -789,45 +488,24 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
     }
 
-
-
     // MC energy balance
-    // sfc_source          + atm_source          + TOA_source = sfc_sink                 + atm_sink                 + TOA_sink
-    // field_sfc_phi.sum() + field_atm_phi.sum() + 0          = field_sfc_absorbed.sum() + field_atm_absorbed.sum() + TOA_absorbed
-
-    // double sfc_source = kahan_sum(field_sfc_emitted) / (dx*dy);
-    // double sfc_sink   = kahan_sum(field_sfc_absorbed) / (dx*dy);
-    // double atm_source = kahan_sum(field_atm_emitted) / (dx*dy);
-    // double atm_sink   = kahan_sum(field_atm_absorbed) / (dx*dy);
-    // double TOA_source = 0.;
-    // double TOA_sink   = TOA_absorbed / (dx*dy);
-
-    // double netto_phi = sfc_source + atm_source + TOA_source - sfc_sink - atm_sink - TOA_sink;
-    // double netto_phi_percentage = netto_phi/(sfc_source + atm_source + TOA_source) * 100.;
+    double sum_of_net_phi_atm = std::accumulate(field_atm_netto_power.begin(), field_atm_netto_power.end(), 0.0);
+    double sum_of_net_phi_sfc = std::accumulate(field_sfc_netto_power.begin(), field_sfc_netto_power.end(), 0.0);
+    double sum_of_net_phi_TOA = std::accumulate(field_TOA_netto_power.begin(), field_TOA_netto_power.end(), 0.0);
+    double sum_of_sums_net_phi = sum_of_net_phi_atm + sum_of_net_phi_sfc + sum_of_net_phi_TOA;
 
 
-    // if (print_EB)
-    // {
-    //     std::cout << "+++ MC ENERGY BALANCE ++++++++++++++" << std::endl;
-    //     std::cout << "+ -- source ------------------------" << std::endl;
-    //     std::cout << "+ sfc source:      " << sfc_source << std::endl;
-    //     std::cout << "+ atm source:      " << atm_source << std::endl;
-    //     std::cout << "+ TOA source:      " << TOA_source << std::endl;
-    //     std::cout << "+ -- sinks -------------------------" << std::endl;
-    //     std::cout << "+ sfc sink:        " << sfc_sink << std::endl;
-    //     std::cout << "+ atm sink:        " << atm_sink << std::endl;
-    //     std::cout << "+ TOA sink:        " << TOA_sink << std::endl;
-    //     std::cout << "+ -- net ---------------------------" << std::endl;
-    //     std::cout << "+ sfc net:         " << sfc_sink - sfc_source << std::endl;
-    //     std::cout << "+ atm net:         " << atm_sink - atm_source << std::endl;
-    //     std::cout << "+ TOA net:         " << TOA_sink - TOA_source << std::endl;
-    //     std::cout << "+ -- sums --------------------------" << std::endl;
-    //     std::cout << "+ sources:         " << sfc_source + atm_source + TOA_source << std::endl;
-    //     std::cout << "+ sinks:           " << sfc_sink + atm_sink + TOA_sink << std::endl;
-    //     std::cout << "+ sources - sinks: " << netto_phi << std::endl;
-    //     std::cout << "+ as percentage:   " << netto_phi_percentage << std::endl;
-    //     std::cout << "++++++++++++++++++++++++++++++++++++" << std::endl;
-    // }
+    if (print_EB)
+    {
+        std::cout << "+++ MC ENERGY BALANCE ++++++++++++++" << std::endl;
+        std::cout << "+ -- net ---------------------------" << std::endl;
+        std::cout << "+ sfc net:         " << sum_of_net_phi_sfc << std::endl;
+        std::cout << "+ atm net:         " << sum_of_net_phi_atm << std::endl;
+        std::cout << "+ TOA net:         " << sum_of_net_phi_TOA << std::endl;
+        std::cout << "+ -- sum ---------------------------" << std::endl;
+        std::cout << "+ netto:           " << sum_of_sums_net_phi << std::endl;
+        std::cout << "++++++++++++++++++++++++++++++++++++" << std::endl;
+    }
 
 
     

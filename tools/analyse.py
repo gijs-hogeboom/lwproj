@@ -7,13 +7,13 @@ import pyvista as pv
 path = '/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D'
 
 
-Case = 'r3D21'
+Case = 'r3D3'
 InterCellTechnique = 'power'
-Natm = Nsfc = 21
+Nphot = 26
 PescMode = 1
 
-file_atm = f'hr_3D_atm_{Case}_Natm{Natm}_Nsfc{Nsfc}_{InterCellTechnique}_Pesc{PescMode}.dat'
-file_sfc = f'flux_3D_sfc_{Case}_Natm{Natm}_Nsfc{Nsfc}_{InterCellTechnique}_Pesc{PescMode}.dat'
+file_atm = f'hr_3D_atm_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}.dat'
+file_sfc = f'flux_3D_sfc_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}.dat'
 
 with open(os.path.join(path, file_atm), 'rb') as f:
     itot, jtot, ktot = np.fromfile(f, dtype=np.int32, count=3)
@@ -34,6 +34,7 @@ img['Values'] = hr_sfc.ravel()
 
 vmax_atm = np.max(np.abs(hr))
 vmax_sfc = np.max(np.abs(hr_sfc))
+print(vmax_atm, vmax_sfc)
 vmax = np.min([vmax_atm, vmax_sfc])
 # vmax = 116
 

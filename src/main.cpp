@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
     // Handling input
     std::string arg1 = "gpt21";
     std::string arg2 = "power";
-    int arg3 = 21;
+    int arg3 = 20;
     bool arg4 = false;
 
 
@@ -50,12 +50,9 @@ int main(int argc, char* argv[])
 
     // Run settings
     int Nphot_pow = arg3;
-
     int Nphot     = pow(2, Nphot_pow);
-    int Natm_pow  = Nphot_pow - 1; // splitting total amount in half
-    int Nsfc_pow  = Nphot_pow - 1;
-    int Natm      = pow(2, Natm_pow);
-    int Nsfc      = pow(2, Nsfc_pow);
+
+    constexpr bool enable_scattering = true;
 
     std::string CASE = arg1;
     bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
@@ -74,7 +71,7 @@ int main(int argc, char* argv[])
 
     // Console output params
     bool print_EB_MC         = true;
-    bool print_EB_PP         = true;
+    bool print_EB_PP         = false;
     bool verbose             = true;
     bool print_final_results = true;
     bool plot_results        = true;
@@ -94,6 +91,8 @@ int main(int argc, char* argv[])
     std::vector<double> field_atm_kext;
     std::vector<double> field_atm_B;
     std::vector<double> field_sfc_B;
+    std::vector<double> field_atm_SSA;
+    std::vector<double> field_atm_ASY;
     double Bsfc, dx, dy;
     int itot, jtot, ktot;
 
@@ -134,6 +133,8 @@ int main(int argc, char* argv[])
 
         field_atm_kext.resize(n_volumes);
         field_atm_B.resize(n_volumes);
+        field_atm_SSA.resize(n_volumes);
+        field_atm_ASY.resize(n_volumes);
         field_sfc_B.resize(n_tiles);
 
         for (int i = 0; i < itot; i++)
@@ -145,6 +146,8 @@ int main(int argc, char* argv[])
                     int idx = i*jtot*ktot + j*ktot + k;
                     field_atm_kext[idx] = arr_kext[i];
                     field_atm_B[idx] = arr_Batm[i];
+                    field_atm_SSA[idx] = 0.0; // Temporary, due to lack of data
+                    field_atm_ASY[idx] = 0.0; // Temporary, due to lack of data
                     if (i == 0) field_sfc_B[idx] = Bsfc;
                 }
             }
@@ -176,6 +179,10 @@ int main(int argc, char* argv[])
         std::vector<double> col_kext_cloud = j[CASE + "_kext_cloud"].get<std::vector<double>>();
         std::vector<double> col_Batm_open  = j[CASE + "_Batm_open"].get<std::vector<double>>();
         std::vector<double> col_Batm_cloud = j[CASE + "_Batm_cloud"].get<std::vector<double>>();
+        std::vector<double> col_SSA_open   = j[CASE + "_SSA_open"].get<std::vector<double>>();
+        std::vector<double> col_SSA_cloud  = j[CASE + "_SSA_cloud"].get<std::vector<double>>();
+        std::vector<double> col_ASY_open   = j[CASE + "_ASY_open"].get<std::vector<double>>();
+        std::vector<double> col_ASY_cloud  = j[CASE + "_ASY_cloud"].get<std::vector<double>>();
 
         std::vector<int> cloud_coords_x = j[CASE + "_cloud_coords_x"].get<std::vector<int>>();
         std::vector<int> cloud_coords_y = j[CASE + "_cloud_coords_y"].get<std::vector<int>>();
@@ -219,7 +226,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        // Filling in the kext and batm arrays
+        // Filling in the data arrays
         field_atm_kext.resize(n_volumes);
         field_atm_B.resize(n_volumes);
         // Open columns
@@ -233,6 +240,8 @@ int main(int argc, char* argv[])
 
                 field_atm_kext[idx] = col_kext_open[i];
                 field_atm_B[idx]    = col_Batm_open[i];
+                field_atm_SSA[idx]  = col_SSA_open[i];
+                field_atm_ASY[idx]  = col_ASY_open[i];
             }
         }
         // Cloudy columns
@@ -246,6 +255,8 @@ int main(int argc, char* argv[])
 
                 field_atm_kext[idx] = col_kext_cloud[i];
                 field_atm_B[idx]    = col_Batm_cloud[i];
+                field_atm_SSA[idx]  = col_SSA_cloud[i];
+                field_atm_ASY[idx]  = col_ASY_cloud[i];
             }
         }
 
@@ -267,8 +278,10 @@ int main(int argc, char* argv[])
         field_atm_B    = j["Batm_" + CASE].get<std::vector<double>>();
         field_atm_kext = j["kext_" + CASE].get<std::vector<double>>();
         field_sfc_B    = j["Bsfc_" + CASE].get<std::vector<double>>();
-        
 
+        int n_volumes = itot * jtot * ktot;
+        field_atm_SSA = std::vector<double>(n_volumes, 0.0); // Temporary, due to lack of data
+        field_atm_ASY = std::vector<double>(n_volumes, 0.0); // Temporary, due to lack of data
     }
 
     
@@ -282,7 +295,7 @@ int main(int argc, char* argv[])
     {
         if (verbose)
         {
-            std::cout << "Start of MC - Natm: " + std::to_string(Natm_pow) + ", Nsfc: " + std::to_string(Nsfc_pow) << std::endl;
+            std::cout << "Start of MC - Nphot: " + std::to_string(Nphot_pow) << std::endl;
         }
 
         heating_rates_MC = run_MC(arr_z,
@@ -291,6 +304,8 @@ int main(int argc, char* argv[])
                                 field_atm_kext,
                                 field_atm_B,
                                 field_sfc_B,
+                                field_atm_SSA,
+                                field_atm_ASY,
                                 dx,
                                 dy,
                                 ktot,
@@ -299,8 +314,7 @@ int main(int argc, char* argv[])
                                 INTERCELL_TECHNIQUE, 
                                 INTRACELL_TECHNIQUE,
                                 CASE,
-                                Natm, 
-                                Nsfc,
+                                Nphot,
                                 print_EB_MC,
                                 verbose,
                                 enable_full_counter_matrix,
@@ -308,7 +322,7 @@ int main(int argc, char* argv[])
                                 OUTPUT_MODE);
         
         // Storing output
-        std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
+        std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Nphot" + std::to_string(Nphot_pow) + ".csv");
         if (!file_MCoutput.is_open())
         {
             std::cerr << "Error: cannot open MC output file!" << std::endl;
@@ -368,12 +382,12 @@ int main(int argc, char* argv[])
     std::vector<double> heating_rates_MC_in(itot, 0.);
     std::vector<double> arr_z_in(itot, 0.);
 
-    std::fstream file_MCinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv");
+    std::fstream file_MCinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Nphot" + std::to_string(Nphot_pow) + ".csv");
     std::fstream file_PPinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_PP_" + CASE + ".csv");
     
     if (!file_MCinput.is_open())
     {
-        std::cout << "File |HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Natm" + std::to_string(Natm_pow) + "_Nsfc" + std::to_string(Nsfc_pow) + ".csv| does not exist!" << std::endl;
+        std::cout << "File |HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Nphot" + std::to_string(Nphot) + ".csv| does not exist!" << std::endl;
     }
     else
     {
@@ -462,8 +476,10 @@ int main(int argc, char* argv[])
         std::cout << "====================================" << std::endl;
         std::cout << "                Done!" << std::endl;
         std::cout << "Parameters:" << std::endl;
-        std::cout << "   | Natm:        " << Natm_pow << std::endl;
-        std::cout << "   | Nsfc:        " << Nsfc_pow << std::endl;
+        std::cout << "   | Case:        " << CASE << std::endl;
+        std::cout << "   | IT sampling: " << INTERCELL_TECHNIQUE << std::endl;
+        std::cout << "   | Nphot:       " << Nphot_pow << std::endl;
+        std::cout << "   | Pesc_mode:   " << Pesc_mode << std::endl;
         std::cout << "Timers:" << std::endl;
         std::cout << "   | MC time:     " << MC_time.count()/1000 << std::endl;
         std::cout << "   | PP time:     " << PP_time.count()/1000 << std::endl;

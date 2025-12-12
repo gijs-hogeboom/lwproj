@@ -7,6 +7,7 @@
 #include <string>
 #include <stdexcept>
 #include <cstdint>
+#include <cmath>
 #include <queue>
 #include <numeric>
 #include <algorithm>
@@ -74,6 +75,15 @@ void LOGvecCompare(const FirstVec& first, const RestVecs&... rest) {
         std::cout << "," << std::endl;
     }
 }
+
+template<typename FirstVal, typename... RestVals>
+void LOGvars(const FirstVal first, const RestVals... rest)
+{
+    printElement(first);
+    ((std::cout << " | ", printElement(rest)), ...);
+    std::cout << std::endl;
+}
+
 
 inline double kahan_sum(const std::vector<double>& values) 
 {
@@ -383,3 +393,54 @@ inline std::size_t count_lines(std::fstream& file) {
 
     return count;
 }
+
+
+
+
+struct Vec3
+{
+    double x, y, z;
+    Vec3(double x_in, double y_in, double z_in) : x(x_in), y(y_in), z(z_in) {}
+};
+
+inline Vec3 generate_angle_HG(double dx, double dy, double dz, double g, FastRNG& rng)
+{
+    g = (g < 1e-6) ? 1e-6 : g;
+
+    double temp = (1 - g*g) / (1 - g + 2*g*rng.uniform());
+    double mu = (1 + g*g - temp*temp) / (2*g);
+    double phi = rng.uniform()*2*cdouble::PI;
+
+    double sin_phi = std::sin(phi);
+    double cos_phi = std::cos(phi);
+    double sin_theta = std::sqrt(1 - mu*mu);
+
+    // Creating tangent and bi-tangent lines (t and b)
+    double tdx, tdy, tdz, bdx, bdy, bdz, vdx, vdy, vdz;
+    double dx2dy2 = dx*dx + dy*dy;
+    double inv_tnorm = 1 / std::sqrt(dx2dy2);
+    double inv_bnorm = 1 / std::sqrt(dx2dy2 + dz*dz);
+
+    // t = up "x" u, normalized to length = 1
+    // b = u "x" t, normalized to length = 1
+
+    tdx = -dy * inv_tnorm;
+    tdy = dx * inv_tnorm;
+    tdz = 0.;
+
+    bdx = -tdy * dz * inv_bnorm;
+    bdy = tdx * dz * inv_bnorm;
+    bdz = dx2dy2 * inv_tnorm * inv_bnorm;
+
+    vdx = sin_theta * cos_phi * tdx + sin_theta * sin_phi * bdx + mu * dx;
+    vdy = sin_theta * cos_phi * tdy + sin_theta * sin_phi * bdy + mu * dy;
+    vdz = sin_theta * cos_phi * tdz + sin_theta * sin_phi * bdz + mu * dz;
+
+    double inv_vnorm = 1/std::sqrt(vdx*vdx + vdy*vdy + vdz*vdz);
+
+    Vec3 vec_out(vdx*inv_vnorm, 
+                 vdy*inv_vnorm, 
+                 vdz*inv_vnorm);
+
+    return vec_out;
+}   
