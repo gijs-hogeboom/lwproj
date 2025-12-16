@@ -31,14 +31,14 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                           const int jtot,
                           const int itot,
                           const std::string& INTERCELL_TECHNIQUE,
-                          const std::string& INTRACELL_TECHNIQUE,
                           const std::string& CASE,
                           const int Nphot,
                           const bool print_EB,
                           const bool verbose,
                           const bool enable_full_counter_matrix,
                           const bool Pesc_mode,
-                          const std::string& OUTPUT_MODE)
+                          const bool OUTPUT_3D,
+                          const bool enable_scattering)
 {
 
     ///////////////////// INITIALIZING DOMAIN ///////////////////////
@@ -196,14 +196,18 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     // Partitioning photons between Atm and Sfc
     double phi_atm_total = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0);
     double phi_sfc_total = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0);
-    double phi_ratio_atm = phi_atm_total / (phi_atm_total + phi_sfc_total);
+    double phi_ratio_atm_sfc = phi_atm_total / (phi_atm_total + phi_sfc_total);
 
-    int Natm = (int)  (phi_ratio_atm * Nphot);  
+    int Natm = (int)  (phi_ratio_atm_sfc * Nphot);  
     int Nsfc = Nphot - Natm;
+
+    // int Natm = Nphot/2;
+    // int Nsfc = Nphot/2;
+
 
     if (verbose)
     {
-        std::cout << "  MC: Ratio Natm / Nsfc: " << phi_ratio_atm * 100.0 << '%' << std::endl;
+        std::cout << "  MC: Ratio Natm / Nsfc: " << phi_ratio_atm_sfc * 100.0 << '%' << std::endl;
     }
 
 
@@ -361,11 +365,10 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
     // Photons from the atmosphere
     photon_propagation(AliasTable_atm,
-                       rng,
                        field_atm_kext,
                        field_sfc_eps,
-                    //    field_atm_SSA,
-                    //    field_atm_ASY,
+                       field_atm_SSA,
+                       field_atm_ASY,
                        arr_xh,
                        arr_yh,
                        arr_zh,
@@ -380,7 +383,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        Natm,
                        0,
                        INTERCELL_TECHNIQUE,
-                       Pesc_mode);
+                       Pesc_mode,
+                       enable_scattering);
 
     if (verbose)
     {
@@ -388,11 +392,10 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     }
     // Photons from the surface
     photon_propagation(AliasTable_sfc,
-                       rng,
                        field_atm_kext,
                        field_sfc_eps,
-                    //    field_atm_SSA,
-                    //    field_atm_ASY,
+                       field_atm_SSA,
+                       field_atm_ASY,
                        arr_xh,
                        arr_yh,
                        arr_zh,
@@ -407,7 +410,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                        Nsfc,
                        1,
                        INTERCELL_TECHNIQUE,
-                       Pesc_mode);
+                       Pesc_mode,
+                       enable_scattering);
 
             
            
@@ -442,26 +446,39 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
     // Output
-    if (OUTPUT_MODE == "3D")
+    if (OUTPUT_3D)
     {
-        std::string atm_output_name = "hr_3D_atm_"   + CASE + "_Nphot" + std::to_string((int) std::log2(Nphot)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
-        std::string sfc_output_name = "flux_3D_sfc_" + CASE + "_Nphot" + std::to_string((int) std::log2(Nphot)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
-        std::string TOA_output_name = "flux_3D_TOA_" + CASE + "_Nphot" + std::to_string((int) std::log2(Nphot)) + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + ".dat";
+        std::ostringstream oss_Nphot;
+        oss_Nphot << std::fixed << std::setprecision(2) << (float) std::log2(Nphot);
+        std::string atm_output_name = "hr_3D_atm_"   + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
+        std::string sfc_output_name = "flux_3D_sfc_" + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
+        std::string TOA_output_name = "flux_3D_TOA_" + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
         std::ofstream atm_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + atm_output_name, std::ios::binary);
         std::ofstream sfc_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + sfc_output_name, std::ios::binary);
         std::ofstream TOA_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + TOA_output_name, std::ios::binary);
         int atm_dims[3] = {itot, jtot, ktot};
         int sfc_dims[2] = {jtot, ktot};
-        std::vector<float> field_atm_heating_rates_f(field_atm_heating_rates.begin(), field_atm_heating_rates.end());
-        std::vector<float> field_sfc_netto_power_f(field_sfc_netto_power.begin(), field_sfc_netto_power.end());
-        std::vector<float> field_TOA_netto_power_f(field_TOA_netto_power.begin(), field_TOA_netto_power.end());
+        std::vector<float> field_atm_heating_rates_f(n_volumes);
+        std::vector<float> field_sfc_netto_power_f(n_tiles);
+        std::vector<float> field_TOA_netto_power_f(n_tiles);
+
+        // Recasting doubles to floats
+        for (int idx = 0; idx < n_volumes; idx++)
+        {
+            field_atm_heating_rates_f[idx] = (float) field_atm_heating_rates[idx];
+            if (idx < n_tiles)
+            {
+                field_sfc_netto_power_f[idx] = (float) field_sfc_netto_power[idx];
+                field_TOA_netto_power_f[idx] = (float) field_TOA_netto_power[idx];
+            }
+        }
         
         atm_output.write(reinterpret_cast<char*>(atm_dims), sizeof(atm_dims));
-        atm_output.write(reinterpret_cast<char*>(field_atm_heating_rates.data()), sizeof(double)*itot*jtot*ktot);
+        atm_output.write(reinterpret_cast<char*>(field_atm_heating_rates_f.data()), sizeof(float)*n_volumes);
         sfc_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
-        sfc_output.write(reinterpret_cast<char*>(field_sfc_netto_power.data()), sizeof(double)*jtot*ktot);
+        sfc_output.write(reinterpret_cast<char*>(field_sfc_netto_power_f.data()), sizeof(float)*n_tiles);
         TOA_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
-        TOA_output.write(reinterpret_cast<char*>(field_TOA_netto_power.data()), sizeof(double)*jtot*ktot);
+        TOA_output.write(reinterpret_cast<char*>(field_TOA_netto_power_f.data()), sizeof(float)*n_tiles);
         atm_output.close();
         sfc_output.close();
         TOA_output.close();

@@ -3,11 +3,14 @@
 #include <sstream>
 #include <nlohmann/json.hpp>
 #include <chrono>
+#include <netcdf>
 #include "gnuplot-iostream.h"
 
 #include "MC.h"
 #include "plane_parallel.h"
 #include "util.h"
+
+
 
 
 int main(int argc, char* argv[])
@@ -17,15 +20,18 @@ int main(int argc, char* argv[])
     using std::chrono::duration_cast;
     using std::chrono::duration;
     using std::chrono::milliseconds;
+
+    using namespace netCDF;
+    using namespace netCDF::exceptions;
     
 
 
     // Handling input
     std::string arg1 = "gpt21";
     std::string arg2 = "power";
-    int arg3 = 20;
+    float arg3 = 20.;
     bool arg4 = false;
-
+    bool arg5 = false;
 
     if (argc > 1)
     {
@@ -37,40 +43,43 @@ int main(int argc, char* argv[])
     }
     if (argc > 3)
     {
-        arg3 = std::stoi(argv[3]);
+        arg3 = std::stof(argv[3]);
     }
     if (argc > 4)
     {
         std::istringstream(argv[4]) >> arg4;
     }
+    if (argc > 5)
+    {
+        std::istringstream(argv[5]) >> arg5;
+    }
 
-    std::cout << "Arguments | CASE: " << arg1 << ", INTERCELL_TECHNIQUE: " << arg2 << ", Nphot_pow: " << arg3 << ", Pesc_mode: " << arg4 << std::endl;
+    std::cout << "Arguments | CASE: " << arg1 << ", INTERCELL_TECHNIQUE: " << arg2 << ", Nphot_pow: " << arg3 << ", Pesc_mode: " << arg4 << ", enable_scattering: " << arg5 << std::endl;
 
 
 
     // Run settings
-    int Nphot_pow = arg3;
-    int Nphot     = pow(2, Nphot_pow);
+    float Nphot_pow = arg3;
+    int Nphot     = (int) pow(2, Nphot_pow);
 
-    constexpr bool enable_scattering = true;
 
     std::string CASE = arg1;
     bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
 
     std::string INTERCELL_TECHNIQUE = arg2;       // {uniform, power, power-gradient}
-    std::string INTRACELL_TECHNIQUE = "naive";    // {naive, (margin), (edge)}
 
     bool Pesc_mode = arg4;
+    bool enable_scattering = arg5;
 
+    // Output parameters
     bool enable_full_counter_matrix = false;
-
-    std::string OUTPUT_MODE = "3D";               // {1D, 3D}
+    bool OUTPUT_3D = true;
 
 
 
     // Console output params
-    bool print_EB_MC         = true;
+    bool print_EB_MC         = false;
     bool print_EB_PP         = false;
     bool verbose             = true;
     bool print_final_results = true;
@@ -98,20 +107,23 @@ int main(int argc, char* argv[])
 
     // Reading the case json file
     std::string caseID = CASE.substr(0, 3);
-    std::fstream file_cases("/home/gijs-hogeboom/dev/mclw/data_input/" + caseID + "cases.json");
-    
-    if (!file_cases.is_open())
-    {
-        std::cerr << "Could not open " + caseID + "cases.json!" << std::endl;
-        return 1;
-    }
-    
-    nlohmann::json j;
-    file_cases >> j;
+
 
     // File input handling
     if (caseID == "gpt") // MV cases
     {
+        // Opening MV cases .json
+        std::fstream file_cases("/home/gijs-hogeboom/dev/mclw/data_input/" + caseID + "cases.json");
+    
+        if (!file_cases.is_open())
+        {
+            std::cerr << "Could not open " + caseID + "cases.json!" << std::endl;
+            return 1;
+        }
+        
+        nlohmann::json j;
+        file_cases >> j;
+
         arr_z = j["z_" + CASE].get<std::vector<double>>();
         arr_zh = j["zh_" + CASE].get<std::vector<double>>();
         arr_dz = j["dz_" + CASE].get<std::vector<double>>();
@@ -129,6 +141,8 @@ int main(int argc, char* argv[])
         // Generating fields from 1D kext and Batm data
         std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
         std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
+        std::vector<double> arr_SSA = j["SSA_" + CASE].get<std::vector<double>>();
+        std::vector<double> arr_ASY = j["ASY_" + CASE].get<std::vector<double>>();
         Bsfc = j["Bsfc_" + CASE].get<double>();
 
         field_atm_kext.resize(n_volumes);
@@ -145,9 +159,9 @@ int main(int argc, char* argv[])
                 {
                     int idx = i*jtot*ktot + j*ktot + k;
                     field_atm_kext[idx] = arr_kext[i];
-                    field_atm_B[idx] = arr_Batm[i];
-                    field_atm_SSA[idx] = 0.0; // Temporary, due to lack of data
-                    field_atm_ASY[idx] = 0.0; // Temporary, due to lack of data
+                    field_atm_B[idx]    = arr_Batm[i];
+                    field_atm_SSA[idx]  = arr_SSA[i]; // Temporary, due to lack of data
+                    field_atm_ASY[idx]  = arr_ASY[i]; // Temporary, due to lack of data
                     if (i == 0) field_sfc_B[idx] = Bsfc;
                 }
             }
@@ -157,6 +171,18 @@ int main(int argc, char* argv[])
     }
     else if (caseID == "s3D") // simple 3D cases
     {
+        // Opening s3Dcases.json
+        std::fstream file_cases("/home/gijs-hogeboom/dev/mclw/data_input/" + caseID + "cases.json");
+    
+        if (!file_cases.is_open())
+        {
+            std::cerr << "Could not open " + caseID + "cases.json!" << std::endl;
+            return 1;
+        }
+        
+        nlohmann::json j;
+        file_cases >> j;
+        
         arr_z = j[CASE + "_z"].get<std::vector<double>>();
         arr_zh = j[CASE + "_zh"].get<std::vector<double>>();
         arr_dz = j[CASE + "_dz"].get<std::vector<double>>();
@@ -229,6 +255,8 @@ int main(int argc, char* argv[])
         // Filling in the data arrays
         field_atm_kext.resize(n_volumes);
         field_atm_B.resize(n_volumes);
+        field_atm_SSA.resize(n_volumes);
+        field_atm_ASY.resize(n_volumes);
         // Open columns
         for (int idx_open = 0; idx_open < Nopen_coords; idx_open++)
         {
@@ -260,24 +288,45 @@ int main(int argc, char* argv[])
             }
         }
 
+
     }
     else if (caseID == "r3D") // "Real" 3D cases (from the gpoints data)
     {
-        arr_z = j["z"].get<std::vector<double>>();
-        arr_zh = j["zh"].get<std::vector<double>>();
-        arr_dz = j["dz"].get<std::vector<double>>();
+        // Opening raw 3D lw optics .nc file
+        NcFile nc_optics("/home/gijs-hogeboom/dev/mclw/data_input/lw_optical_properties.nc", NcFile::read); 
+        NcFile nc_gridinfo("/home/gijs-hogeboom/dev/mclw/data_input/grid.nc", NcFile::read);
 
-        int xy_size = j["xy_size"].get<int>();
-        itot = arr_z.size();
-        jtot = xy_size;
-        ktot = xy_size;
+        NcVar tau = nc_optics.getVar("lw_tau");
+        NcVar Batm = nc_optics.getVar("lay_source");
+        NcVar Bsfc = nc_optics.getVar("sfc_source");
+        NcVar SSA = nc_optics.getVar("lw_ssa");
+        NcVar ASY = nc_optics.getVar("lw_asy");
+
+        auto dims = tau.getDims();
+        int nGpts = dims[0].getSize();
+        itot = dims[1].getSize();
+        jtot = dims[2].getSize();
+        ktot = dims[3].getSize();
+
+        std::string chosen_gpt = CASE.substr(3, CASE.length());
+        std::cout << chosen_gpt << std::endl;
+
+        // NcVar arr_z = nc_gridinfo.getVar("lay");
+        // NcVar arr_z = nc_gridinfo.getVar("lev");
+        // NcVar arr_dz = nc_gridinfo.getVar("lay");
+
+        // arr_z = j["z"].get<std::vector<double>>();
+        // arr_zh = j["zh"].get<std::vector<double>>();
+        // arr_dz = j["dz"].get<std::vector<double>>();
+
+
 
         dx = 100;
         dy = 100;
 
-        field_atm_B    = j["Batm_" + CASE].get<std::vector<double>>();
-        field_atm_kext = j["kext_" + CASE].get<std::vector<double>>();
-        field_sfc_B    = j["Bsfc_" + CASE].get<std::vector<double>>();
+        // field_atm_B    = j["Batm_" + CASE].get<std::vector<double>>();
+        // field_atm_kext = j["kext_" + CASE].get<std::vector<double>>();
+        // field_sfc_B    = j["Bsfc_" + CASE].get<std::vector<double>>();
 
         int n_volumes = itot * jtot * ktot;
         field_atm_SSA = std::vector<double>(n_volumes, 0.0); // Temporary, due to lack of data
@@ -311,18 +360,19 @@ int main(int argc, char* argv[])
                                 ktot,
                                 jtot,
                                 itot,
-                                INTERCELL_TECHNIQUE, 
-                                INTRACELL_TECHNIQUE,
+                                INTERCELL_TECHNIQUE,
                                 CASE,
                                 Nphot,
                                 print_EB_MC,
                                 verbose,
                                 enable_full_counter_matrix,
                                 Pesc_mode,
-                                OUTPUT_MODE);
+                                OUTPUT_3D,
+                                enable_scattering);
         
         // Storing output
-        std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Nphot" + std::to_string(Nphot_pow) + ".csv");
+        std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
+                                    "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv");
         if (!file_MCoutput.is_open())
         {
             std::cerr << "Error: cannot open MC output file!" << std::endl;
@@ -382,12 +432,14 @@ int main(int argc, char* argv[])
     std::vector<double> heating_rates_MC_in(itot, 0.);
     std::vector<double> arr_z_in(itot, 0.);
 
-    std::fstream file_MCinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Nphot" + std::to_string(Nphot_pow) + ".csv");
+    std::fstream file_MCinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
+                              "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv");
     std::fstream file_PPinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_PP_" + CASE + ".csv");
     
     if (!file_MCinput.is_open())
     {
-        std::cout << "File |HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_" + INTRACELL_TECHNIQUE + "_Nphot" + std::to_string(Nphot) + ".csv| does not exist!" << std::endl;
+        std::cout << "File |HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + 
+                      std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv| does not exist!" << std::endl;
     }
     else
     {

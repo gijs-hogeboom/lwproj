@@ -17,7 +17,7 @@ dy = 100
 dz = 50
 
 cloud_center = jtot//2
-cloud_r      = jtot//3
+cloud_r      = jtot//4
 
 cloud_coords_x = [ x for x in range(cloud_center - cloud_r, cloud_center + cloud_r) for y in range(cloud_center - cloud_r, cloud_center + cloud_r) ]
 cloud_coords_y = [ y for x in range(cloud_center - cloud_r, cloud_center + cloud_r) for y in range(cloud_center - cloud_r, cloud_center + cloud_r) ]
@@ -41,8 +41,8 @@ def f_ASY_open(z):
 
 # Cloudy column
 kext_cloud = 0.6
-B_cloud = 0.3
-SSA_cloud = 0.4
+B_cloud = 2
+SSA_cloud = 0.51
 ASY_cloud = 0.75
 
 cloud_height_lower = 1000
@@ -90,7 +90,7 @@ arr_SSA_cloud  = np.array( [f_SSA_cloud(z) for z in arr_z] )
 arr_ASY_open   = np.array( [f_ASY_open(z) for z in arr_z] )
 arr_ASY_cloud  = np.array( [f_ASY_cloud(z) for z in arr_z] )
 
-Bsfc = arr_Batm_open[0]*10
+Bsfc = arr_Batm_open[0]*75
 
 
 print(arr_kext_cloud)
@@ -138,7 +138,7 @@ with open(os.path.join(path,"s3Dcases.json"), 'w') as f:
 
 
 
-build_r3D_cases = False
+build_r3D_cases = True
 if build_r3D_cases:
     # 3D Menno GPT cases
 
@@ -151,8 +151,8 @@ if build_r3D_cases:
             tau   = np.array(df.variables['lw_tau'][:])
             Batm  = np.array(df.variables['lay_source'][:])
             Bsfc  = np.array(df.variables['sfc_source'][:])
-            Batmh = np.array(df.variables['lev_source'][:])
-
+            ssa   = np.array(df.variables['lw_ssa'][:])
+            asy   = np.array(df.variables['lw_asy'][:])
 
             arr_z  = np.array(dfinfo.variables['lay'][:])
             arr_zh = np.array(dfinfo.variables['lev'][:])
@@ -164,16 +164,82 @@ if build_r3D_cases:
 
     dct_cases   = {'z':arr_z.tolist(), 'zh':arr_zh.tolist(), 'dz':arr_dz.tolist()}
 
-    ls_gpts = [3, 21, 30]
-    xy_size = 96
+    ls_gpts = [3, 17, 21, 30]
+    xy_size = 192
 
 
     dct_cases['xy_size'] = xy_size
     for gpt in ls_gpts:
         dct_cases[f'kext_r3D{gpt}'] = kext[gpt,:,:xy_size,:xy_size].flatten().tolist()
         dct_cases[f'Batm_r3D{gpt}'] = Batm[gpt,:,:xy_size,:xy_size].flatten().tolist()
+        dct_cases[f'SSA_r3D{gpt}']  = ssa[gpt,:,:xy_size,:xy_size].flatten().tolist()
+        dct_cases[f'ASY_r3D{gpt}']  = asy[gpt,:,:xy_size,:xy_size].flatten().tolist()
         dct_cases[f'Bsfc_r3D{gpt}'] = Bsfc[gpt,:xy_size,:xy_size].flatten().tolist()
         print(gpt, 'done')
 
     with open(os.path.join(path,"r3Dcases.json"), 'w') as f:
         json.dump(dct_cases, f)
+
+
+
+
+
+
+build_MVcases = False
+if build_MVcases:
+
+    path = '/home/gijs-hogeboom/dev/Python_programmes/LWproject2'
+    path_out = '/home/gijs-hogeboom/dev/mclw/data_input'
+
+
+    with nc.Dataset(os.path.join(path, 'lw_optical_properties.nc'), 'r') as df:
+        with nc.Dataset(os.path.join(path, 'grid.nc'), 'r') as dfinfo:
+
+            tau    = np.array(df.variables['lw_tau'][:])
+            Batm   = np.array(df.variables['lay_source'][:])
+            Bsfc   = np.array(df.variables['sfc_source'][:])
+            Batmh  = np.array(df.variables['lev_source'][:])
+
+            arr_z  = np.array(dfinfo.variables['lay'][:])
+            arr_zh = np.array(dfinfo.variables['lev'][:])
+            arr_dz = np.array(dfinfo.variables['lev'][1:] - dfinfo.variables['lev'][:-1])
+
+            ssa    = np.array(df.variables['lw_ssa'][:])
+            asy    = np.array(df.variables['lw_asy'][:])
+
+    kext = np.array(tau[:,:,:,:]) / arr_dz[np.newaxis, :, np.newaxis, np.newaxis]
+
+    dct_cases   = {'z':arr_z, 'zh':arr_zh, 'dz':arr_dz}
+
+
+
+    for gpt in range(36):
+        
+        print(gpt)
+        
+        arr_kext  = kext[gpt,:,:,:].mean(axis=(1,2))
+        arr_Batm  = Batm[gpt,:,:,:].mean(axis=(1,2))
+        arr_SSA   = ssa[gpt,:,:,:].mean(axis=(1,2))
+        arr_ASY   = asy[gpt,:,:,:].mean(axis=(1,2))
+
+        B_sfc     = Bsfc[gpt,:,:].mean()
+
+        arr_phi   = 4*np.pi*arr_kext*arr_Batm*arr_dz
+        
+        dct_cases[f'z_gpt{gpt}']     = arr_z
+        dct_cases[f'zh_gpt{gpt}']    = arr_zh
+        dct_cases[f'dz_gpt{gpt}']    = arr_dz
+        dct_cases[f'kext_gpt{gpt}']  = arr_kext
+        dct_cases[f'Batm_gpt{gpt}']  = arr_Batm
+        dct_cases[f'SSA_gpt{gpt}']   = arr_SSA
+        dct_cases[f'ASY_gpt{gpt}']   = arr_ASY
+        dct_cases[f'Bsfc_gpt{gpt}']  = B_sfc
+
+
+    dct_jsondump = {k: v.tolist() for k,v in dct_cases.items()}
+
+
+    with open(os.path.join(path_out, 'gptcases.json'), 'w') as f:
+        json.dump(dct_jsondump, f)
+
+

@@ -16,11 +16,11 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                            const int jtot,
                            const int itot,
                            const std::string& INTERCELL_TECHNIQUE,
-                           const std::string& INTRACELL_TECHNIQUE,
                            const std::string& CASE,
                            const int Nphot,
                            const bool print_EB,
                            const bool verbose,
                            const bool enable_full_counter_matrix,
                            const bool Pesc_mode,
-                           const std::string& OUTPUT_MODE);
+                           const bool OUTPUT_3D,
+                           const bool enable_scattering);
