@@ -4,10 +4,9 @@
 *.exe
 *.so
 
-# Build folders
+# folders and makefiles
 /build/
 /data_output/
-/data_input/
 CMakeFiles/
 CMakeCache.txt
 Makefile
@@ -17,9 +16,6 @@ Makefile
 .idea/
 *.swp
 
-# Other code files
-*.sh
-
 # Certain data files
-*.csv
-*.json
+*.dat
+*.nc
