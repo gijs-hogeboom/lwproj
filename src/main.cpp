@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
 
 
     // Handling input
-    std::string arg1 = "gpt3";
+    std::string arg1 = "gpt21";
     std::string arg2 = "power";
     float arg3 = 20.;
     bool arg4 = false;
@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
 
 
     std::string CASE = arg1;
-    bool ENABLE_MC = false;                        // Enables Monte Carlo algorithm
+    bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
 
     std::string INTERCELL_TECHNIQUE = arg2;       // {uniform, power, power-gradient}
@@ -93,9 +93,9 @@ int main(int argc, char* argv[])
         std::cout << "Start of program, reading input data" << std::endl;
     }
 
-    std::string hr_filename_MC = "/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
+    std::string hr_filename_MC = "../data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
                                     "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv";
-    std::string hr_filename_PP = "/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_PP_" + CASE + ".csv";
+    std::string hr_filename_PP = "../data_output/heating_rates/HR_PP_" + CASE + ".csv";
 
     // Initializing variables to load
     std::vector<float> arr_z;
@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
     if (caseID == "gpt") // MV cases
     {
         // Opening MV cases .json
-        std::fstream file_cases("/home/gijs-hogeboom/dev/mclw/data_input/" + caseID + "cases.json");
+        std::fstream file_cases("../data_input/" + caseID + "cases.json");
     
         if (!file_cases.is_open())
         {
@@ -134,8 +134,8 @@ int main(int argc, char* argv[])
 
         // jtot, ktot, dx and dy are all predetermined in this case
         itot = arr_z.size();
-        jtot = 3;
-        ktot = 3;
+        jtot = 1;
+        ktot = 1;
         int n_volumes = itot * jtot * ktot;
         int n_tiles = jtot * ktot;
 
@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
     else if (caseID == "s3D") // simple 3D cases
     {
         // Opening s3Dcases.json
-        std::fstream file_cases("/home/gijs-hogeboom/dev/mclw/data_input/" + caseID + "cases.json");
+        std::fstream file_cases("../mclw/data_input/" + caseID + "cases.json");
     
         if (!file_cases.is_open())
         {
@@ -300,8 +300,8 @@ int main(int argc, char* argv[])
     else if (caseID == "r3D") // "Real" 3D cases (from the gpoints data)
     {
         // Opening raw 3D lw optics + grid info .nc files
-        NcFile nc_optics("/home/gijs-hogeboom/dev/mclw/data_input/lw_optical_properties.nc", NcFile::read); 
-        NcFile nc_gridinfo("/home/gijs-hogeboom/dev/mclw/data_input/grid.nc", NcFile::read);
+        NcFile nc_optics("../data_input/lw_optical_properties.nc", NcFile::read); 
+        NcFile nc_gridinfo("../data_input/grid.nc", NcFile::read);
 
         // Loading vars
         NcVar nc_tau = nc_optics.getVar("lw_tau");
@@ -507,9 +507,9 @@ int main(int argc, char* argv[])
     std::vector<float> heating_rates_MC_in(itot, 0.);
     std::vector<float> arr_z_in(itot, 0.);
 
-    std::fstream file_MCinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
+    std::fstream file_MCinput("../data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
                               "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv");
-    std::fstream file_PPinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_PP_" + CASE + ".csv");
+    std::fstream file_PPinput("../data_output/heating_rates/HR_PP_" + CASE + ".csv");
     
     if (!file_MCinput.is_open())
     {

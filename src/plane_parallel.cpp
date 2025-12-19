@@ -191,9 +191,9 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
         std::string atm_output_name = "hr_3DPP_atm_"   + CASE + ".dat";
         std::string sfc_output_name = "flux_3DPP_sfc_" + CASE + ".dat";
         std::string TOA_output_name = "flux_3DPP_TOA_" + CASE + ".dat";
-        std::ofstream atm_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3DPP/" + atm_output_name, std::ios::binary);
-        std::ofstream sfc_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3DPP/" + sfc_output_name, std::ios::binary);
-        std::ofstream TOA_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3DPP/" + TOA_output_name, std::ios::binary);
+        std::ofstream atm_output("../data_output/raw_output_3DPP/" + atm_output_name, std::ios::binary);
+        std::ofstream sfc_output("../data_output/raw_output_3DPP/" + sfc_output_name, std::ios::binary);
+        std::ofstream TOA_output("../data_output/raw_output_3DPP/" + TOA_output_name, std::ios::binary);
         int atm_dims[3] = {itot, jtot, ktot};
         int sfc_dims[2] = {jtot, ktot};
 
