@@ -6,7 +6,6 @@
 
 # folders and makefiles
 /build/
-/data_output/
 CMakeFiles/
 CMakeCache.txt
 Makefile
