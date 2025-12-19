@@ -17,22 +17,22 @@
 
 
 
-std::vector<double> run_MC(const std::vector<double>& arr_z,
-                          const std::vector<double>& arr_zh,
-                          const std::vector<double>& arr_dz,
-                          const std::vector<double>& field_atm_kext,
-                          const std::vector<double>& field_atm_B,
-                          const std::vector<double>& field_sfc_B,
-                          const std::vector<double>& field_atm_SSA,
-                          const std::vector<double>& field_atm_ASY,
-                          const double dx,
-                          const double dy,
+std::vector<float> run_MC(const std::vector<float>& arr_z,
+                          const std::vector<float>& arr_zh,
+                          const std::vector<float>& arr_dz,
+                          const std::vector<float>& field_atm_kext,
+                          const std::vector<float>& field_atm_B,
+                          const std::vector<float>& field_sfc_B,
+                          const std::vector<float>& field_atm_SSA,
+                          const std::vector<float>& field_atm_ASY,
+                          const float dx,
+                          const float dy,
                           const int ktot,
                           const int jtot,
                           const int itot,
                           const std::string& INTERCELL_TECHNIQUE,
                           const std::string& CASE,
-                          const int Nphot,
+                          const long int Nphot,
                           const bool print_EB,
                           const bool verbose,
                           const bool enable_full_counter_matrix,
@@ -54,14 +54,14 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     int n_volumes = itot * jtot * ktot;
     int n_tiles   = jtot * ktot;
 
-    double x_max = ktot * dx;
-    double y_max = jtot * dy;
-    double z_max = arr_zh[arr_zh.size() - 1];
+    float x_max = ktot * dx;
+    float y_max = jtot * dy;
+    float z_max = arr_zh[arr_zh.size() - 1];
 
-    std::vector<double> arr_xh(ktot + 1);
-    std::vector<double> arr_yh(jtot + 1);
-    std::vector<double> arr_x(ktot);
-    std::vector<double> arr_y(jtot);
+    std::vector<float> arr_xh(ktot + 1);
+    std::vector<float> arr_yh(jtot + 1);
+    std::vector<float> arr_x(ktot);
+    std::vector<float> arr_y(jtot);
 
 
     // Generating arr_x(h) and arr_y(h)
@@ -84,14 +84,14 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
     // Initializing optical property fields
-    std::vector<double> field_atm_phi(n_volumes);
-    std::vector<double> field_atm_netto_power(n_volumes);
+    std::vector<float> field_atm_phi(n_volumes);
+    std::vector<float> field_atm_netto_power(n_volumes);
 
-    std::vector<double> field_sfc_phi(n_tiles);
-    std::vector<double> field_sfc_eps(n_tiles, 1.0);
-    std::vector<double> field_sfc_netto_power(n_tiles);
+    std::vector<float> field_sfc_phi(n_tiles);
+    std::vector<float> field_sfc_eps(n_tiles, 1.0);
+    std::vector<float> field_sfc_netto_power(n_tiles);
 
-    std::vector<double> field_TOA_netto_power(n_tiles);
+    std::vector<float> field_TOA_netto_power(n_tiles);
 
 
     // Generating fields
@@ -103,14 +103,14 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             for (int k = 0; k < ktot; k++)
             {
                 int idx_atm = i * ktot * jtot + j * ktot + k;
-                double current_kext = field_atm_kext[idx_atm];
-                double current_Batm = field_atm_B[idx_atm];
-                field_atm_phi[idx_atm] = 4*cdouble::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
+                float current_kext = field_atm_kext[idx_atm];
+                float current_Batm = field_atm_B[idx_atm];
+                field_atm_phi[idx_atm] = 4*cfloat::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
 
                 if (i == 0)
                 {
                     int idx_sfc = j * ktot + k;
-                    field_sfc_phi[idx_sfc] = cdouble::PI * field_sfc_eps[idx_sfc] * field_sfc_B[idx_sfc] * dx * dy;
+                    field_sfc_phi[idx_sfc] = cfloat::PI * field_sfc_eps[idx_sfc] * field_sfc_B[idx_sfc] * dx * dy;
                 }
             }
         }
@@ -128,7 +128,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         for (int i = 0; i < itot; i++)
         {
 
-            double dz = arr_dz[i];
+            float dz = arr_dz[i];
             std::string Pesc_path_name = f_Pesccurve_name(dx, dy, dz);  
 
             std::fstream Pesc_curve(Pesc_path_name);
@@ -136,7 +136,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             if (!Pesc_curve.is_open())
             {
                 std::cout << "WARNING! Pesc curve '" << Pesc_path_name << "' not found!" << std::endl;
-                std::vector<double> exit_vec(1);
+                std::vector<float> exit_vec(1);
                 return exit_vec;
             }
             
@@ -145,8 +145,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             Pesc_curve.seekg(0, std::ios::beg);
             
 
-            std::vector<double> arr_kext(N_points);
-            std::vector<double> arr_Pesc(N_points);
+            std::vector<float> arr_kext(N_points);
+            std::vector<float> arr_Pesc(N_points);
 
             std::string line;
             int idx = 0;
@@ -159,13 +159,13 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 std::string cell;
                 std::getline(ss, cell, ','); // index col
                 std::getline(ss, cell, ','); // kext value
-                double kext = std::stod(cell);
+                float kext = std::stod(cell);
                 if ((kext >= 1e-15) && (kext <= 1e5))
                 {
                     arr_kext[idx] = kext;
                 }
                 std::getline(ss, cell, ','); // Pesc value
-                double Pesc = std::stod(cell);
+                float Pesc = std::stod(cell);
                 if ((kext >= 1e-15) && (kext <= 1e5))
                 {
                     arr_Pesc[idx] = Pesc;
@@ -173,7 +173,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 idx++;
             }
     
-            LinearInterpolator_double f_Pesc(arr_kext, arr_Pesc);
+            LinearInterpolator_float f_Pesc(arr_kext, arr_Pesc);
 
             for (int j = 0; j < jtot; j++)
             {
@@ -181,11 +181,11 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
                 {
                     int idx = i*jtot*ktot + j*ktot + k;
 
-                    double kext = field_atm_kext[idx];
+                    float kext = field_atm_kext[idx];
 
-                    double Pesc = f_Pesc(kext);
+                    float Pesc = f_Pesc(kext);
 
-                    double emitted_power = Pesc * field_atm_phi[idx];
+                    float emitted_power = Pesc * field_atm_phi[idx];
 
                     field_atm_phi[idx] = emitted_power;
                 }
@@ -194,12 +194,12 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     }
 
     // Partitioning photons between Atm and Sfc
-    double phi_atm_total = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0);
-    double phi_sfc_total = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0);
-    double phi_ratio_atm_sfc = phi_atm_total / (phi_atm_total + phi_sfc_total);
+    float phi_atm_total = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0);
+    float phi_sfc_total = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0);
+    float phi_ratio_atm_sfc = phi_atm_total / (phi_atm_total + phi_sfc_total);
 
-    int Natm = (int)  (phi_ratio_atm_sfc * Nphot);  
-    int Nsfc = Nphot - Natm;
+    long int Natm = (long int)  (phi_ratio_atm_sfc * Nphot);  
+    long int Nsfc = Nphot - Natm;
 
     // int Natm = Nphot/2;
     // int Nsfc = Nphot/2;
@@ -224,14 +224,14 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     
     // Generating AliasTabel: this will act as the PDF for where photons are
     // sampled within the domain
-    std::vector<double> aliastable_weights_atm;
-    std::vector<double> aliastable_weights_sfc;
+    std::vector<float> aliastable_weights_atm;
+    std::vector<float> aliastable_weights_sfc;
 
     
     if (INTERCELL_TECHNIQUE == "uniform")
     {
-        aliastable_weights_atm = std::vector<double>(n_volumes, 1.0);
-        aliastable_weights_sfc = std::vector<double>(n_tiles, 1.0);
+        aliastable_weights_atm = std::vector<float>(n_volumes, 1.0);
+        aliastable_weights_sfc = std::vector<float>(n_tiles, 1.0);
     } else
     if (INTERCELL_TECHNIQUE == "power")
     {
@@ -242,7 +242,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     if (INTERCELL_TECHNIQUE == "power-gradient")
     {
         // Creating the power-gradient field (atmosphere)
-        std::vector<double> field_atm_phi_gradient(n_volumes);
+        std::vector<float> field_atm_phi_gradient(n_volumes);
         for (size_t i = 0; i < itot; i++)
         {
             for (size_t j = 0; j < jtot; j++)
@@ -331,7 +331,7 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         }
 
         // Surface (only gradient in z direction is considered important)
-        std::vector<double> field_sfc_phi_gradient(n_tiles);
+        std::vector<float> field_sfc_phi_gradient(n_tiles);
         for (size_t j = 0; j < jtot; j++)
         {
             for (size_t k = 0; k < ktot; k++)
@@ -351,8 +351,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
 
-    AliasTable_double AliasTable_atm(aliastable_weights_atm);
-    AliasTable_double AliasTable_sfc(aliastable_weights_sfc);   
+    AliasTable_float AliasTable_atm(aliastable_weights_atm);
+    AliasTable_float AliasTable_sfc(aliastable_weights_sfc);   
 
 
     
@@ -423,8 +423,8 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     }
 
 
-    std::vector<double> field_atm_heating_rates(n_volumes);
-    std::vector<double> field_sfc_heating_rates(n_tiles);
+    std::vector<float> field_atm_heating_rates(n_volumes);
+    std::vector<float> field_sfc_heating_rates(n_tiles);
     for (int i = 0; i < itot; i++)
     {
         for (int j = 0; j < jtot; j++)
@@ -432,13 +432,13 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
             for (int k = 0; k < ktot; k++)
             {
                 int idx_atm =  i * ktot * jtot + j * ktot + k;
-                double dz = arr_dz[i];
-                field_atm_heating_rates[idx_atm] = field_atm_netto_power[idx_atm] / (cdouble::RHO * cdouble::CP * dx * dy * dz) * 86400;
+                float dz = arr_dz[i];
+                field_atm_heating_rates[idx_atm] = field_atm_netto_power[idx_atm] / (cfloat::RHO * cfloat::CP * dx * dy * dz) * 86400;
 
                 if (i == 0)
                 {
                     int idx_sfc = j * ktot + k;
-                    field_sfc_heating_rates[idx_sfc] = field_sfc_netto_power[idx_sfc] / (cdouble::RHO * cdouble::CP * dx * dy) * 86400;
+                    field_sfc_heating_rates[idx_sfc] = field_sfc_netto_power[idx_sfc] / (cfloat::RHO * cfloat::CP * dx * dy) * 86400;
                 }
             }
         }
@@ -458,27 +458,14 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
         std::ofstream TOA_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + TOA_output_name, std::ios::binary);
         int atm_dims[3] = {itot, jtot, ktot};
         int sfc_dims[2] = {jtot, ktot};
-        std::vector<float> field_atm_heating_rates_f(n_volumes);
-        std::vector<float> field_sfc_netto_power_f(n_tiles);
-        std::vector<float> field_TOA_netto_power_f(n_tiles);
 
-        // Recasting doubles to floats
-        for (int idx = 0; idx < n_volumes; idx++)
-        {
-            field_atm_heating_rates_f[idx] = (float) field_atm_heating_rates[idx];
-            if (idx < n_tiles)
-            {
-                field_sfc_netto_power_f[idx] = (float) field_sfc_netto_power[idx];
-                field_TOA_netto_power_f[idx] = (float) field_TOA_netto_power[idx];
-            }
-        }
         
         atm_output.write(reinterpret_cast<char*>(atm_dims), sizeof(atm_dims));
-        atm_output.write(reinterpret_cast<char*>(field_atm_heating_rates_f.data()), sizeof(float)*n_volumes);
+        atm_output.write(reinterpret_cast<char*>(field_atm_heating_rates.data()), sizeof(float)*n_volumes);
         sfc_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
-        sfc_output.write(reinterpret_cast<char*>(field_sfc_netto_power_f.data()), sizeof(float)*n_tiles);
+        sfc_output.write(reinterpret_cast<char*>(field_sfc_netto_power.data()), sizeof(float)*n_tiles);
         TOA_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
-        TOA_output.write(reinterpret_cast<char*>(field_TOA_netto_power_f.data()), sizeof(float)*n_tiles);
+        TOA_output.write(reinterpret_cast<char*>(field_TOA_netto_power.data()), sizeof(float)*n_tiles);
         atm_output.close();
         sfc_output.close();
         TOA_output.close();
@@ -486,12 +473,12 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
 
 
     // Making 1D for comparing against plane-parallel
-    std::vector<double> arr_atm_heating_rates_1D(itot);
+    std::vector<float> arr_atm_heating_rates_1D(itot);
 
     // Averaging the horizontal directions
     for (int i = 0; i < itot; i++)
     {
-        std::vector<double> horizontal_values(jtot*ktot);
+        std::vector<float> horizontal_values(jtot*ktot);
         for (int j = 0; j < jtot; j++)
         {
             for (int k = 0; k < ktot; k++)
@@ -506,10 +493,10 @@ std::vector<double> run_MC(const std::vector<double>& arr_z,
     }
 
     // MC energy balance
-    double sum_of_net_phi_atm = std::accumulate(field_atm_netto_power.begin(), field_atm_netto_power.end(), 0.0);
-    double sum_of_net_phi_sfc = std::accumulate(field_sfc_netto_power.begin(), field_sfc_netto_power.end(), 0.0);
-    double sum_of_net_phi_TOA = std::accumulate(field_TOA_netto_power.begin(), field_TOA_netto_power.end(), 0.0);
-    double sum_of_sums_net_phi = sum_of_net_phi_atm + sum_of_net_phi_sfc + sum_of_net_phi_TOA;
+    float sum_of_net_phi_atm = std::accumulate(field_atm_netto_power.begin(), field_atm_netto_power.end(), 0.0);
+    float sum_of_net_phi_sfc = std::accumulate(field_sfc_netto_power.begin(), field_sfc_netto_power.end(), 0.0);
+    float sum_of_net_phi_TOA = std::accumulate(field_TOA_netto_power.begin(), field_TOA_netto_power.end(), 0.0);
+    float sum_of_sums_net_phi = sum_of_net_phi_atm + sum_of_net_phi_sfc + sum_of_net_phi_TOA;
 
 
     if (print_EB)

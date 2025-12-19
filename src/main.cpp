@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
 
 
     // Handling input
-    std::string arg1 = "gpt21";
+    std::string arg1 = "gpt3";
     std::string arg2 = "power";
     float arg3 = 20.;
     bool arg4 = false;
@@ -60,11 +60,11 @@ int main(int argc, char* argv[])
 
     // Run settings
     float Nphot_pow = arg3;
-    int Nphot     = (int) pow(2, Nphot_pow);
+    long int Nphot = (long int) pow(2, Nphot_pow);
 
 
     std::string CASE = arg1;
-    bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
+    bool ENABLE_MC = false;                        // Enables Monte Carlo algorithm
     bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
 
     std::string INTERCELL_TECHNIQUE = arg2;       // {uniform, power, power-gradient}
@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
     bool print_EB_PP         = false;
     bool verbose             = true;
     bool print_final_results = true;
-    bool plot_results        = true;
+    bool plot_results        = false;
 
 
     /////////////// READING CASE //////////////////
@@ -92,17 +92,21 @@ int main(int argc, char* argv[])
     {
         std::cout << "Start of program, reading input data" << std::endl;
     }
-    
+
+    std::string hr_filename_MC = "/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
+                                    "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv";
+    std::string hr_filename_PP = "/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_PP_" + CASE + ".csv";
+
     // Initializing variables to load
-    std::vector<double> arr_z;
-    std::vector<double> arr_zh;
-    std::vector<double> arr_dz;
-    std::vector<double> field_atm_kext;
-    std::vector<double> field_atm_B;
-    std::vector<double> field_sfc_B;
-    std::vector<double> field_atm_SSA;
-    std::vector<double> field_atm_ASY;
-    double Bsfc, dx, dy;
+    std::vector<float> arr_z;
+    std::vector<float> arr_zh;
+    std::vector<float> arr_dz;
+    std::vector<float> field_atm_kext;
+    std::vector<float> field_atm_B;
+    std::vector<float> field_sfc_B;
+    std::vector<float> field_atm_SSA;
+    std::vector<float> field_atm_ASY;
+    float Bsfc, dx, dy;
     int itot, jtot, ktot;
 
     // Reading the case json file
@@ -124,14 +128,14 @@ int main(int argc, char* argv[])
         nlohmann::json j;
         file_cases >> j;
 
-        arr_z = j["z_" + CASE].get<std::vector<double>>();
-        arr_zh = j["zh_" + CASE].get<std::vector<double>>();
-        arr_dz = j["dz_" + CASE].get<std::vector<double>>();
+        arr_z = j["z_" + CASE].get<std::vector<float>>();
+        arr_zh = j["zh_" + CASE].get<std::vector<float>>();
+        arr_dz = j["dz_" + CASE].get<std::vector<float>>();
 
         // jtot, ktot, dx and dy are all predetermined in this case
         itot = arr_z.size();
-        jtot = 11;
-        ktot = 11;
+        jtot = 3;
+        ktot = 3;
         int n_volumes = itot * jtot * ktot;
         int n_tiles = jtot * ktot;
 
@@ -139,11 +143,11 @@ int main(int argc, char* argv[])
         dy = 100;
 
         // Generating fields from 1D kext and Batm data
-        std::vector<double> arr_kext = j["kext_" + CASE].get<std::vector<double>>();
-        std::vector<double> arr_Batm = j["Batm_" + CASE].get<std::vector<double>>();
-        std::vector<double> arr_SSA = j["SSA_" + CASE].get<std::vector<double>>();
-        std::vector<double> arr_ASY = j["ASY_" + CASE].get<std::vector<double>>();
-        Bsfc = j["Bsfc_" + CASE].get<double>();
+        std::vector<float> arr_kext = j["kext_" + CASE].get<std::vector<float>>();
+        std::vector<float> arr_Batm = j["Batm_" + CASE].get<std::vector<float>>();
+        std::vector<float> arr_SSA = j["SSA_" + CASE].get<std::vector<float>>();
+        std::vector<float> arr_ASY = j["ASY_" + CASE].get<std::vector<float>>();
+        Bsfc = j["Bsfc_" + CASE].get<float>();
 
         field_atm_kext.resize(n_volumes);
         field_atm_B.resize(n_volumes);
@@ -183,35 +187,38 @@ int main(int argc, char* argv[])
         nlohmann::json j;
         file_cases >> j;
         
-        arr_z = j[CASE + "_z"].get<std::vector<double>>();
-        arr_zh = j[CASE + "_zh"].get<std::vector<double>>();
-        arr_dz = j[CASE + "_dz"].get<std::vector<double>>();
+        std::string caseNr = CASE.substr(3, CASE.length());
 
-        std::vector<int> case_limits = j[CASE + "_case_limits"].get<std::vector<int>>();
+        arr_z = j[caseNr]["z"].get<std::vector<float>>();
+        arr_zh = j[caseNr]["zh"].get<std::vector<float>>();
+        arr_dz = j[caseNr]["dz"].get<std::vector<float>>();
+
+
+        std::vector<int> case_limits = j[caseNr]["case_limits"].get<std::vector<int>>();
         itot = case_limits[0];
         jtot = case_limits[1];
         ktot = case_limits[2];
         int n_volumes = itot * jtot * ktot;
         int n_tiles = jtot * ktot;
 
-        std::vector<int> cell_size_horizontal = j[CASE + "_cell_size_horizontal"].get<std::vector<int>>();
+        std::vector<int> cell_size_horizontal = j[caseNr]["cell_size_horizontal"].get<std::vector<int>>();
         dx = cell_size_horizontal[0];
         dy = cell_size_horizontal[1];
 
-        Bsfc = j[CASE + "_Bsfc"].get<double>();
+        Bsfc = j[caseNr]["Bsfc"].get<float>();
 
         // Generating kext and Batm arrays
-        std::vector<double> col_kext_open  = j[CASE + "_kext_open"].get<std::vector<double>>();
-        std::vector<double> col_kext_cloud = j[CASE + "_kext_cloud"].get<std::vector<double>>();
-        std::vector<double> col_Batm_open  = j[CASE + "_Batm_open"].get<std::vector<double>>();
-        std::vector<double> col_Batm_cloud = j[CASE + "_Batm_cloud"].get<std::vector<double>>();
-        std::vector<double> col_SSA_open   = j[CASE + "_SSA_open"].get<std::vector<double>>();
-        std::vector<double> col_SSA_cloud  = j[CASE + "_SSA_cloud"].get<std::vector<double>>();
-        std::vector<double> col_ASY_open   = j[CASE + "_ASY_open"].get<std::vector<double>>();
-        std::vector<double> col_ASY_cloud  = j[CASE + "_ASY_cloud"].get<std::vector<double>>();
+        std::vector<float> col_kext_open  = j[caseNr]["kext_open"].get<std::vector<float>>();
+        std::vector<float> col_kext_cloud = j[caseNr]["kext_cloud"].get<std::vector<float>>();
+        std::vector<float> col_Batm_open  = j[caseNr]["Batm_open"].get<std::vector<float>>();
+        std::vector<float> col_Batm_cloud = j[caseNr]["Batm_cloud"].get<std::vector<float>>();
+        std::vector<float> col_SSA_open   = j[caseNr]["SSA_open"].get<std::vector<float>>();
+        std::vector<float> col_SSA_cloud  = j[caseNr]["SSA_cloud"].get<std::vector<float>>();
+        std::vector<float> col_ASY_open   = j[caseNr]["ASY_open"].get<std::vector<float>>();
+        std::vector<float> col_ASY_cloud  = j[caseNr]["ASY_cloud"].get<std::vector<float>>();
 
-        std::vector<int> cloud_coords_x = j[CASE + "_cloud_coords_x"].get<std::vector<int>>();
-        std::vector<int> cloud_coords_y = j[CASE + "_cloud_coords_y"].get<std::vector<int>>();
+        std::vector<int> cloud_coords_x = j[caseNr]["cloud_coords_x"].get<std::vector<int>>();
+        std::vector<int> cloud_coords_y = j[caseNr]["cloud_coords_y"].get<std::vector<int>>();
         int Ncloud_coords = cloud_coords_x.size();
         int Nopen_coords  = jtot*ktot - Ncloud_coords;
 
@@ -292,52 +299,116 @@ int main(int argc, char* argv[])
     }
     else if (caseID == "r3D") // "Real" 3D cases (from the gpoints data)
     {
-        // Opening raw 3D lw optics .nc file
+        // Opening raw 3D lw optics + grid info .nc files
         NcFile nc_optics("/home/gijs-hogeboom/dev/mclw/data_input/lw_optical_properties.nc", NcFile::read); 
         NcFile nc_gridinfo("/home/gijs-hogeboom/dev/mclw/data_input/grid.nc", NcFile::read);
 
-        NcVar tau = nc_optics.getVar("lw_tau");
-        NcVar Batm = nc_optics.getVar("lay_source");
-        NcVar Bsfc = nc_optics.getVar("sfc_source");
-        NcVar SSA = nc_optics.getVar("lw_ssa");
-        NcVar ASY = nc_optics.getVar("lw_asy");
+        // Loading vars
+        NcVar nc_tau = nc_optics.getVar("lw_tau");
+        NcVar nc_Batm = nc_optics.getVar("lay_source");
+        NcVar nc_Bsfc = nc_optics.getVar("sfc_source");
+        NcVar nc_SSA = nc_optics.getVar("lw_ssa");
+        NcVar nc_ASY = nc_optics.getVar("lw_asy");
 
-        auto dims = tau.getDims();
-        int nGpts = dims[0].getSize();
-        itot = dims[1].getSize();
-        jtot = dims[2].getSize();
-        ktot = dims[3].getSize();
-
-        std::string chosen_gpt = CASE.substr(3, CASE.length());
-        std::cout << chosen_gpt << std::endl;
-
-        // NcVar arr_z = nc_gridinfo.getVar("lay");
-        // NcVar arr_z = nc_gridinfo.getVar("lev");
-        // NcVar arr_dz = nc_gridinfo.getVar("lay");
-
-        // arr_z = j["z"].get<std::vector<double>>();
-        // arr_zh = j["zh"].get<std::vector<double>>();
-        // arr_dz = j["dz"].get<std::vector<double>>();
+        NcVar nc_arr_z  = nc_gridinfo.getVar("lay");
+        NcVar nc_arr_zh = nc_gridinfo.getVar("lev");
 
 
+        // Obtaining information
+        auto dims = nc_tau.getDims();
+        long unsigned int nGpts = dims[0].getSize();
+        long unsigned int itot_local = dims[1].getSize();
+        long unsigned int jtot_local = dims[2].getSize();
+        long unsigned int ktot_local = dims[3].getSize();
+        int n_volumes = itot_local * jtot_local * ktot_local;
+        int n_tiles = jtot_local * ktot_local;
 
-        dx = 100;
-        dy = 100;
+        std::vector<double> darr_z;
+        std::vector<double> darr_zh;
+        std::vector<double> darr_dz;
+        std::vector<double> dfield_atm_kext;
+        std::vector<double> dfield_atm_B;
+        std::vector<double> dfield_sfc_B;
+        std::vector<double> dfield_atm_SSA;
+        std::vector<double> dfield_atm_ASY;
 
-        // field_atm_B    = j["Batm_" + CASE].get<std::vector<double>>();
-        // field_atm_kext = j["kext_" + CASE].get<std::vector<double>>();
-        // field_sfc_B    = j["Bsfc_" + CASE].get<std::vector<double>>();
+        // Resizing vectors to fit data
+        dfield_atm_kext.resize(n_volumes);
+        dfield_atm_B.resize(n_volumes);
+        dfield_atm_SSA.resize(n_volumes);
+        dfield_atm_ASY.resize(n_volumes);
+        dfield_sfc_B.resize(n_tiles);
 
-        int n_volumes = itot * jtot * ktot;
-        field_atm_SSA = std::vector<double>(n_volumes, 0.0); // Temporary, due to lack of data
-        field_atm_ASY = std::vector<double>(n_volumes, 0.0); // Temporary, due to lack of data
+        darr_z.resize(itot_local);
+        darr_zh.resize(itot_local + 1);
+        darr_dz.resize(itot_local);
+
+
+        // Filling in data vectors
+        nc_arr_z.getVar(darr_z.data());
+        nc_arr_zh.getVar(darr_zh.data());
+
+        for (int i = 0; i < itot_local; i++)
+        {
+            darr_dz[i] = darr_zh[i+1] - darr_zh[i];
+        }
+
+        long unsigned int chosen_gpt = std::stoi(CASE.substr(3, CASE.length()));
+        nc_tau.getVar(  {chosen_gpt, 0, 0, 0}, {1, itot_local, jtot_local, ktot_local}, dfield_atm_kext.data());
+        nc_Batm.getVar( {chosen_gpt, 0, 0, 0}, {1, itot_local, jtot_local, ktot_local}, dfield_atm_B.data());
+        nc_SSA.getVar(  {chosen_gpt, 0, 0, 0}, {1, itot_local, jtot_local, ktot_local}, dfield_atm_SSA.data());
+        nc_ASY.getVar(  {chosen_gpt, 0, 0, 0}, {1, itot_local, jtot_local, ktot_local}, dfield_atm_ASY.data());
+        nc_Bsfc.getVar( {chosen_gpt, 0, 0},    {1, jtot_local, ktot_local},             dfield_sfc_B.data());
+        
+        dx = 100.;
+        dy = 100.;     
+        
+        // casting doubles to floats, filling in actual values
+        itot = (int) itot_local;
+        jtot = (int) jtot_local;
+        ktot = (int) ktot_local;
+
+        field_atm_kext.resize(n_volumes);
+        field_atm_B.resize(n_volumes);
+        field_atm_SSA.resize(n_volumes);
+        field_atm_ASY.resize(n_volumes);
+        field_sfc_B.resize(n_tiles);
+
+        arr_z.resize(itot_local);
+        arr_zh.resize(itot_local + 1);
+        arr_dz.resize(itot_local);
+
+        for (int i = 0; i < itot; i++)
+        {
+            arr_z[i] = (float) darr_z[i];
+            arr_zh[i] = (float) darr_zh[i];
+            arr_dz[i] = (float) darr_dz[i];
+            for (int j = 0; j < jtot; j++)
+            {
+                for (int k = 0; k < ktot; k++)
+                {
+                    int idx = i * n_tiles + j*ktot + k;
+
+                    field_atm_kext[idx] = (float) (dfield_atm_kext[idx] / arr_dz[i]);
+                    field_atm_B[idx] = (float) dfield_atm_B[idx];
+                    field_atm_SSA[idx] = (float) dfield_atm_SSA[idx];
+                    field_atm_ASY[idx] = (float) dfield_atm_ASY[idx];
+
+                    if (i == 0)
+                    {
+                        field_sfc_B[idx] = (float) dfield_sfc_B[idx];
+                    }
+                }
+            }
+        }
+        arr_zh[itot] = (float) darr_zh[itot]; // filling in final upper value, not captured in the loop
     }
 
     
 
         
-    std::vector<double> heating_rates_MC(itot);
-    std::vector<double> heating_rates_PP(itot);
+    std::vector<float> heating_rates_MC(itot);
+    std::vector<float> heating_rates_PP(itot);
 
     auto MC_t1 = std::chrono::high_resolution_clock::now();
     if (ENABLE_MC)
@@ -371,8 +442,7 @@ int main(int argc, char* argv[])
                                 enable_scattering);
         
         // Storing output
-        std::ofstream file_MCoutput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
-                                    "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv");
+        std::ofstream file_MCoutput(hr_filename_MC);
         if (!file_MCoutput.is_open())
         {
             std::cerr << "Error: cannot open MC output file!" << std::endl;
@@ -397,18 +467,23 @@ int main(int argc, char* argv[])
         }
 
         heating_rates_PP = run_plane_parallel(arr_z,
-                                            arr_zh,
-                                            arr_dz,
-                                            field_atm_kext,
-                                            field_atm_B,
-                                            Bsfc,
-                                            100,
-                                            print_EB_PP,
-                                            verbose);
+                                              arr_zh,
+                                              arr_dz,
+                                              field_atm_kext,
+                                              field_atm_B,
+                                              field_sfc_B,
+                                              CASE,
+                                              dx,
+                                              dy,
+                                              jtot,
+                                              ktot,
+                                              print_EB_PP,
+                                              verbose,
+                                              OUTPUT_3D);
         
         // Storing output
         
-        std::ofstream file_PPoutput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_PP_" + CASE + ".csv");
+        std::ofstream file_PPoutput(hr_filename_PP);
         if (!file_PPoutput.is_open())
         {
             std::cerr << "Error: cannot open PP output file!" << std::endl;
@@ -428,9 +503,9 @@ int main(int argc, char* argv[])
     duration<double, std::milli> PP_time = PP_t2 - PP_t1;
     
     // Loading results
-    std::vector<double> heating_rates_PP_in(itot, 0.);
-    std::vector<double> heating_rates_MC_in(itot, 0.);
-    std::vector<double> arr_z_in(itot, 0.);
+    std::vector<float> heating_rates_PP_in(itot, 0.);
+    std::vector<float> heating_rates_MC_in(itot, 0.);
+    std::vector<float> arr_z_in(itot, 0.);
 
     std::fstream file_MCinput("/home/gijs-hogeboom/dev/mclw/data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
                               "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv");
@@ -489,7 +564,7 @@ int main(int argc, char* argv[])
 
 
     ////////////// Calculating metrics ///////////////////////
-    double RMSE_tot, ME_tot;
+    float RMSE_tot, ME_tot;
 
     for (size_t i = 0; i < itot; i++)
     {
@@ -506,7 +581,7 @@ int main(int argc, char* argv[])
     {
         Gnuplot gp;
 
-        std::vector<std::pair<double,double>> hr_1D, hr_3D;
+        std::vector<std::pair<float,float>> hr_1D, hr_3D;
         for (int i = 0; i < itot; i++)
         {
             hr_1D.emplace_back(heating_rates_PP_in[i], arr_z_in[i]);

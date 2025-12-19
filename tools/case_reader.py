@@ -6,7 +6,7 @@ import pyvista as pv
 
 
 
-CASE = 'r3D21'
+CASE = 's3D1'
 
 
 # reading and unpacking data
@@ -16,21 +16,21 @@ with open(f"/home/gijs-hogeboom/dev/mclw/data_input/{CASE[:3]}cases.json", 'r') 
 
 
 if CASE[:3] == 's3D':
+    CaseID = CASE[3:]
+    itot, jtot, ktot = dct[CaseID]['case_limits']
+    dx, dy = dct[CaseID]['cell_size_horizontal']
 
-    itot, jtot, ktot = dct[f'{CASE}_case_limits']
-    dx, dy = dct[f'{CASE}_cell_size_horizontal']
+    arr_z  = dct[CaseID]['z']
+    arr_zh = dct[CaseID]['zh']
+    arr_dz = dct[CaseID]['dz']
 
-    arr_z  = dct[f'{CASE}_z']
-    arr_zh = dct[f'{CASE}_zh']
-    arr_dz = dct[f'{CASE}_dz']
+    col_kext_hom   = dct[CaseID]['kext_open']
+    col_kext_cloud = dct[CaseID]['kext_cloud']
+    col_B_hom      = dct[CaseID]['Batm_open']
+    col_B_cloud    = dct[CaseID]['Batm_cloud']
 
-    col_kext_hom   = dct[f'{CASE}_kext_open']
-    col_kext_cloud = dct[f'{CASE}_kext_cloud']
-    col_B_hom      = dct[f'{CASE}_Batm_open']
-    col_B_cloud    = dct[f'{CASE}_Batm_cloud']
-
-    cloud_coords_x = dct[f'{CASE}_cloud_coords_x']
-    cloud_coords_y = dct[f'{CASE}_cloud_coords_y']
+    cloud_coords_x = dct[CaseID]['cloud_coords_x']
+    cloud_coords_y = dct[CaseID]['cloud_coords_y']
 
     # Deducing homogenized column coordinates from cloud coordinates
     hom_coords_x = np.zeros(jtot*ktot - len(cloud_coords_x), dtype=int)
@@ -101,10 +101,12 @@ if CASE[:3] == 's3D':
     field_kext = arr_kext.reshape((itot, jtot, ktot))
     field_B    = arr_B.reshape((itot, jtot, ktot))
 
+    field_phi = 4*np.pi * field_kext * field_B * 100 * 100 * 50
 
 
     pl = pv.Plotter()
-    pl.add_volume(field_kext, cmap='jet')
+    pl.add_volume(np.transpose(field_phi, (2,1,0)), cmap='jet')
+    pl.set_scale(zscale=0.5)
     pl.show()
 
 

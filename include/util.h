@@ -126,15 +126,15 @@ inline double estimate_max_numerical_double_error(double s)
 }
 
 
-inline std::vector<double> linspace(double start, double end, int N)
+inline std::vector<float> linspace(float start, float end, int N)
 {
-    std::vector<double> arr_result(N);
+    std::vector<float> arr_result(N);
 
-    double step_size = (end - start)/(N - 1);
+    float step_size = (end - start)/(N - 1);
 
     for (size_t i = 0; i < N; i++)
     {
-        arr_result[i] = start + (static_cast<double>(i) * step_size);
+        arr_result[i] = start + (static_cast<float>(i) * step_size);
     }
 
     return arr_result;
@@ -143,20 +143,20 @@ inline std::vector<double> linspace(double start, double end, int N)
 
 
 
-inline double trapezoid(const std::vector<double>& arr_x,
-                const std::vector<double>& arr_y)
+inline float trapezoid(const std::vector<float>& arr_x,
+                        const std::vector<float>& arr_y)
 {
     size_t n = arr_x.size();
-    std::vector<double> values((n - 1));
+    std::vector<float> values((n - 1));
 
     for (size_t i = 0; i < (n - 1); i++)
     {
-        double dx = arr_x[i+1] - arr_x[i];
-        double Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0;
+        float dx = arr_x[i+1] - arr_x[i];
+        float Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0;
         values[i] = Y;
     }
 
-    double result = std::accumulate(values.begin(), values.end(), 0.0);
+    float result = std::accumulate(values.begin(), values.end(), 0.0);
     return result;
 }
 
@@ -212,7 +212,7 @@ struct FastRNG {
     Xoshiro256ss rng;
     FastRNG(uint64_t seed) : rng(seed) {}
 
-    inline double uniform() { return rng.next_double(); }
+    inline float uniform() { return rng.next_float(); }
 
     inline int uniform_int(int max_exclusive) {
         return static_cast<int>(((unsigned __int128)rng.next() * (unsigned __int128)max_exclusive) >> 64);
@@ -380,6 +380,59 @@ public:
 private:
     std::vector<double> xs;
     std::vector<double> ys;
+};
+
+
+
+class LinearInterpolator_float {
+public:
+    LinearInterpolator_float(const std::vector<float>& x,
+                              const std::vector<float>& y)
+        : xs(x), ys(y)
+    {
+        if (xs.size() != ys.size() || xs.size() < 2) {
+            throw std::invalid_argument("x and y arrays must have same size >= 2");
+        }
+
+        // ensure strictly increasing x
+        for (size_t i = 1; i < xs.size(); ++i) {
+            if (xs[i] <= xs[i - 1]) {
+                throw std::invalid_argument("x values must be strictly increasing");
+            }
+        }
+    }
+
+    // interpolate y at value xq
+    inline float operator()(float xq) const {
+        // out-of-range -> throw
+        if (xq < xs.front() || xq > xs.back()) {
+            throw std::out_of_range("query x is outside interpolation range");
+        }
+
+        // find first element greater than xq
+        auto it = std::lower_bound(xs.begin(), xs.end(), xq);
+        
+        if (it == xs.begin())
+            return ys.front();
+        
+        if (it == xs.end())
+            return ys.back();
+
+        // indices of bounding interval
+        size_t i1 = it - xs.begin();
+        size_t i0 = i1 - 1;
+
+        float x0 = xs[i0], x1 = xs[i1];
+        float y0 = ys[i0], y1 = ys[i1];
+
+        // linear interpolation
+        float t = (xq - x0) / (x1 - x0);
+        return y0 + t * (y1 - y0);
+    }
+
+private:
+    std::vector<float> xs;
+    std::vector<float> ys;
 };
 
 

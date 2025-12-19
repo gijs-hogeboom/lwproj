@@ -6,19 +6,12 @@ import pyvista as pv
 
 path = '/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D'
 
-Nn = '27.00'
-Np = '22.69'
-
 case_pesc = 1
 
 Case = 's3D1'
 InterCellTechnique = 'power'
-if case_pesc:
-    Nphot = Np
-    PescMode = 1
-else:
-    Nphot = Nn
-    PescMode = 0
+Nphot = '28.00'
+PescMode = 1
 enable_scattering = 0
 
 file_atm = f'hr_3D_atm_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}_scatter{enable_scattering}.dat'
@@ -54,7 +47,7 @@ vmax_atm = np.max(np.abs(hr))
 vmax_sfc = np.max(np.abs(hr_sfc))
 print(vmax_atm, vmax_sfc)
 vmax = np.min([vmax_atm, vmax_sfc])
-vmax = 15
+vmax = 12
 
 pl = pv.Plotter()
 pl.add_volume(np.transpose(hr, (2,1,0)), clim=[-vmax, vmax], cmap='seismic', opacity=[1,0,1])

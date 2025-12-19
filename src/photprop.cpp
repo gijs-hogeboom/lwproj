@@ -14,29 +14,28 @@
 #include "util.h"
 
 
-void photon_propagation(const AliasTable_double& aliastable,
-                        const std::vector<double>& field_kext,
-                        const std::vector<double>& field_sfc_eps,
-                        const std::vector<double>& field_SSA,
-                        const std::vector<double>& field_ASY,
-                        const std::vector<double>& arr_xh,
-                        const std::vector<double>& arr_yh,
-                        const std::vector<double>& arr_zh,
-                        const std::vector<double>& arr_x,
-                        const std::vector<double>& arr_y,
-                        const std::vector<double>& arr_z,
-                        const std::vector<double>& arr_dz,
-                        const std::vector<double>& field_phi,
-                        std::vector<double>& field_atm_net_phi,
-                        std::vector<double>& field_sfc_net_phi,
-                        std::vector<double>& field_TOA_net_phi,
-                        const int N,
+void photon_propagation(const AliasTable_float& aliastable,
+                        const std::vector<float>& field_kext,
+                        const std::vector<float>& field_sfc_eps,
+                        const std::vector<float>& field_SSA,
+                        const std::vector<float>& field_ASY,
+                        const std::vector<float>& arr_xh,
+                        const std::vector<float>& arr_yh,
+                        const std::vector<float>& arr_zh,
+                        const std::vector<float>& arr_x,
+                        const std::vector<float>& arr_y,
+                        const std::vector<float>& arr_z,
+                        const std::vector<float>& arr_dz,
+                        const std::vector<float>& field_phi,
+                        std::vector<float>& field_atm_net_phi,
+                        std::vector<float>& field_sfc_net_phi,
+                        std::vector<float>& field_TOA_net_phi,
+                        const long int N,
                         const int domain_section,
                         const std::string& INTERCELL_TECHNIQUE,
                         const bool Pesc_mode,
                         const bool enable_scattering)
 {
-
 
     const int itot       = arr_z.size();
     const int jtot       = arr_y.size();
@@ -44,17 +43,17 @@ void photon_propagation(const AliasTable_double& aliastable,
     const int n_volumes  = itot*jtot*ktot;
     const int n_tiles    = jtot*ktot;
 
-    const double x_max   = arr_xh[ktot];
-    const double y_max   = arr_yh[jtot];
-    const double z_max   = arr_zh[itot];
-    const double cell_dx = arr_xh[1] - arr_xh[0];
-    const double cell_dy = arr_yh[1] - arr_yh[0];
+    const float x_max   = arr_xh[ktot];
+    const float y_max   = arr_yh[jtot];
+    const float z_max   = arr_zh[itot];
+    const float cell_dx = arr_xh[1] - arr_xh[0];
+    const float cell_dy = arr_yh[1] - arr_yh[0];
     
-    const double eps     = 2e-5;
-    const double w_crit  = 0.5;
+    const float eps     = 1e-3;
+    const float w_crit  = 0.5;
     const int jktot      = jtot*ktot;
     
-    double photon_power;
+    float photon_power;
 
     if (INTERCELL_TECHNIQUE == "power")
     {
@@ -68,14 +67,14 @@ void photon_propagation(const AliasTable_double& aliastable,
         int tid = omp_get_thread_num();
         FastRNG rng_local(std::chrono::high_resolution_clock::now().time_since_epoch().count() + tid);
 
-        std::vector<double> field_atm_net_phi_local(n_volumes);
-        std::vector<double> field_sfc_net_phi_local(n_tiles);
-        std::vector<double> field_TOA_net_phi_local(n_tiles);
+        std::vector<float> field_atm_net_phi_local(n_volumes);
+        std::vector<float> field_sfc_net_phi_local(n_tiles);
+        std::vector<float> field_TOA_net_phi_local(n_tiles);
+        
 
         #pragma omp for
-        for (int idx_photon = 0; idx_photon < N; idx_photon++)
+        for (long int idx_photon = 0; idx_photon < N; idx_photon++)
         {
-
 
             // Tracking whether photon leaves the cell
             bool out_of_cell = false;
@@ -88,18 +87,19 @@ void photon_propagation(const AliasTable_double& aliastable,
 
             if (!(INTERCELL_TECHNIQUE == "power"))
             {
-                double sample_weight = aliastable.weights[idx_flat];
+                float sample_weight = aliastable.weights[idx_flat];
                 photon_power = field_phi[idx_flat] / (sample_weight * N); // either field_atm_phi or field_sfc_phi
             }
 
 
             // Initializing position/direction/optical thickness
             int idx_z, idx_y, idx_x;
-            double x, y, z, mu, az, tau;
+            float x, y, z, mu, az, tau;
 
             // Initializing scattering-related properties
-            double absorbed_photon_power, current_ssa, current_asy;
+            float absorbed_photon_power, current_ssa, current_asy;
 
+            int iter_counter = 0;
 
             if (domain_section == 0)
             {
@@ -114,7 +114,7 @@ void photon_propagation(const AliasTable_double& aliastable,
                 z = arr_zh[idx_z] + rng_local.uniform()*arr_dz[idx_z];
 
                 mu = rng_local.uniform()*2 - 1;
-                az = rng_local.uniform()*2*cdouble::PI;
+                az = rng_local.uniform()*2*cfloat::PI;
 
                 tau = -std::log(rng_local.uniform());
             }
@@ -130,18 +130,18 @@ void photon_propagation(const AliasTable_double& aliastable,
                 z = 0.;
 
                 mu = std::sqrt(rng_local.uniform());
-                az = rng_local.uniform()*2*cdouble::PI;
+                az = rng_local.uniform()*2*cfloat::PI;
 
                 tau = -std::log(rng_local.uniform());
             }
 
             // Calculating cartesian direction vector
-            double s = std::sqrt(1 - mu*mu);
-            double dx = s*std::cos(az);
-            double dy = s*std::sin(az);
-            double dz = mu;
+            float s = std::sqrt(1 - mu*mu);
+            float dx = s*std::cos(az);
+            float dy = s*std::sin(az);
+            float dz = mu;
 
-            double w = 1.0;
+            float w = 1.0;
             
             
             // Starting propegation...
@@ -190,7 +190,7 @@ void photon_propagation(const AliasTable_double& aliastable,
                         tau = 0.;
                         int idx_tile = idx_y * ktot + idx_x;
                         
-                        double absorbed_photon_power = w*photon_power;
+                        float absorbed_photon_power = w*photon_power;
                         w = 0.;
 
                         field_TOA_net_phi_local[idx_tile] += absorbed_photon_power;
@@ -235,7 +235,7 @@ void photon_propagation(const AliasTable_double& aliastable,
                         {
                             if (w < w_crit)
                             {
-                                double rhow = rng_local.uniform();
+                                float rhow = rng_local.uniform();
                                 if (rhow > w)
                                 {
                                     w = 0.;
@@ -243,7 +243,7 @@ void photon_propagation(const AliasTable_double& aliastable,
                                 } else {
                                     w = 1.;
                                     mu = std::sqrt(rng_local.uniform());
-                                    az = rng_local.uniform()*2*cdouble::PI;
+                                    az = rng_local.uniform()*2*cfloat::PI;
                                     
                                     s = std::sqrt(1 - mu*mu);
                                     dx = s*std::cos(az);
@@ -257,7 +257,7 @@ void photon_propagation(const AliasTable_double& aliastable,
                             else
                             {
                                 mu = std::sqrt(rng_local.uniform());
-                                az = rng_local.uniform()*2*cdouble::PI;
+                                az = rng_local.uniform()*2*cfloat::PI;
                                 
                                 s = std::sqrt(1 - mu*mu);
                                 dx = s*std::cos(az);
@@ -274,11 +274,11 @@ void photon_propagation(const AliasTable_double& aliastable,
                     // Updating position
                     idx_flat = idx_z*jktot + idx_y*ktot + idx_x;
                     // Loading kext
-                    double current_kext = field_kext[idx_flat];
+                    float current_kext = field_kext[idx_flat];
 
                     // Scanning collision with cell boundaries
-                    double time_x, time_y, time_z;
-                    double dnx, dny, dnz;
+                    float time_x, time_y, time_z;
+                    float dnx, dny, dnz;
 
                     if (dx >= 0.) // x
                     {
@@ -308,7 +308,7 @@ void photon_propagation(const AliasTable_double& aliastable,
 
                     // Determinig the scaling factor based on which cell is hit (i.e., which direction takes the least amount of time)
                     // Additionally, updating photon index position for next iteration (if photon extincts within the cell, the idx will not be used anyways)
-                    double dist_x, dist_y, dist_z;
+                    float dist_x, dist_y, dist_z;
 
                     bool hit_x_wall = ((time_x <= time_y) && (time_x <= time_z));
                     bool hit_y_wall = ((time_y <= time_x) && (time_y <= time_z));
@@ -336,9 +336,9 @@ void photon_propagation(const AliasTable_double& aliastable,
 
 
                     // Calculating distance traveled
-                    double ds           = sqrt(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
-                    double max_s        = tau/current_kext;
-                    double tau_absorbed = current_kext*ds;
+                    float ds           = sqrt(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
+                    float max_s        = tau/current_kext;
+                    float tau_absorbed = current_kext*ds;
 
                     if (Pesc_mode && !out_of_cell)
                     {
@@ -370,7 +370,7 @@ void photon_propagation(const AliasTable_double& aliastable,
                         else
                         {
                             tau = 0.;
-                            double fs = max_s / ds;
+                            float fs = max_s / ds;
                             x += dist_x*fs;
                             y += dist_y*fs;
                             z += dist_z*fs;
@@ -407,7 +407,7 @@ void photon_propagation(const AliasTable_double& aliastable,
                             {
                                 if (w < w_crit)
                                 {
-                                    double rhow = rng_local.uniform();
+                                    float rhow = rng_local.uniform();
                                     if (rhow > w)
                                     {
                                         w = 0.;
@@ -433,6 +433,11 @@ void photon_propagation(const AliasTable_double& aliastable,
                                 }
                             }
                         }
+                    }
+                    iter_counter++;
+                    if (iter_counter > 100000000)
+                    {
+                        LOGvars(idx_photon, idx_x, idx_y, idx_z, x, y, z, dx, dy, dz, tau, w, ds, current_kext);
                     }
                 }
             }

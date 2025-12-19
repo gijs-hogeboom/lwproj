@@ -9,17 +9,26 @@ path = '/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D'
 
 Case = 's3D1'
 InterCellTechnique = 'power'
-Nphot = 25
-# PescMode = 0
+Nphot = '30.00'
+PescMode = 0
 enable_scattering = 0
 
-file_atm1 = f'hr_3D_atm_{Case}_Nphot27.00_{InterCellTechnique}_Pesc0_scatter{enable_scattering}.dat'
-file_sfc1 = f'flux_3D_sfc_{Case}_Nphot27.00_{InterCellTechnique}_Pesc0_scatter{enable_scattering}.dat'
-file_TOA1 = f'flux_3D_TOA_{Case}_Nphot27.00_{InterCellTechnique}_Pesc0_scatter{enable_scattering}.dat'
+# file_atm1 = f'hr_3D_atm_{Case}_Nphot27.00_{InterCellTechnique}_Pesc0_scatter{enable_scattering}.dat'
+# file_sfc1 = f'flux_3D_sfc_{Case}_Nphot27.00_{InterCellTechnique}_Pesc0_scatter{enable_scattering}.dat'
+# file_TOA1 = f'flux_3D_TOA_{Case}_Nphot27.00_{InterCellTechnique}_Pesc0_scatter{enable_scattering}.dat'
 
-file_atm2 = f'hr_3D_atm_{Case}_Nphot22.69_{InterCellTechnique}_Pesc1_scatter{enable_scattering}.dat'
-file_sfc2 = f'flux_3D_sfc_{Case}_Nphot22.69_{InterCellTechnique}_Pesc1_scatter{enable_scattering}.dat'
-file_TOA2 = f'flux_3D_TOA_{Case}_Nphot22.69_{InterCellTechnique}_Pesc1_scatter{enable_scattering}.dat'
+# file_atm2 = f'hr_3D_atm_{Case}_Nphot22.69_{InterCellTechnique}_Pesc1_scatter{enable_scattering}.dat'
+# file_sfc2 = f'flux_3D_sfc_{Case}_Nphot22.69_{InterCellTechnique}_Pesc1_scatter{enable_scattering}.dat'
+# file_TOA2 = f'flux_3D_TOA_{Case}_Nphot22.69_{InterCellTechnique}_Pesc1_scatter{enable_scattering}.dat'
+
+file_atm1 = f'hr_3D_atm_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}_scatter0.dat'
+file_sfc1 = f'flux_3D_sfc_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}_scatter0.dat'
+file_TOA1 = f'flux_3D_TOA_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}_scatter0.dat'
+
+file_atm2 = f'hr_3D_atm_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}_scatter1.dat'
+file_sfc2 = f'flux_3D_sfc_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}_scatter1.dat'
+file_TOA2 = f'flux_3D_TOA_{Case}_Nphot{Nphot}_{InterCellTechnique}_Pesc{PescMode}_scatter1.dat'
+
 
 with open(os.path.join(path, file_atm1), 'rb') as f:
     itot, jtot, ktot = np.fromfile(f, dtype=np.int32, count=3)
@@ -58,6 +67,15 @@ diff_hr_sfc = hr_sfc2 - hr_sfc1
 diff_hr_TOA = hr_TOA2 - hr_TOA1
 
 
+img_sfc1 = pv.ImageData(dimensions=(ktot, jtot, 1))
+img_sfc1['Values'] = hr_sfc1.ravel()
+img_TOA1 = pv.ImageData(dimensions=(ktot, jtot, 1))
+img_TOA1['Values'] = hr_TOA1.ravel()
+
+img_sfc2 = pv.ImageData(dimensions=(ktot, jtot, 1))
+img_sfc2['Values'] = hr_sfc2.ravel()
+img_TOA2 = pv.ImageData(dimensions=(ktot, jtot, 1))
+img_TOA2['Values'] = hr_TOA2.ravel()
 
 diff_img_sfc = pv.ImageData(dimensions=(ktot, jtot, 1))
 diff_img_sfc['Values'] = diff_hr_sfc.ravel()
@@ -69,10 +87,22 @@ vmax_atm = np.max(np.abs(diff_hr))
 vmax_sfc = np.max(np.abs(diff_hr_sfc))
 print('Pesc - no Pesc')
 vmax = np.min([vmax_atm, vmax_sfc])
-vmax = 15
+vmax = 25
 
 diff_hr = diff_hr[:50, :, :]
+hr1 = hr1[:50, :, :]
+hr2 = hr2[:50, :, :]
 
+
+pl = pv.Plotter()
+pl.add_volume(np.transpose(hr1, (2,1,0)), clim=[-vmax, vmax], cmap='seismic', opacity=[1,0,1])
+pl.add_mesh(img_sfc1, clim=[-vmax, vmax], cmap='seismic', show_scalar_bar=False)
+pl.show()
+
+pl = pv.Plotter()
+pl.add_volume(np.transpose(hr2, (2,1,0)), clim=[-vmax, vmax], cmap='seismic', opacity=[1,0,1])
+pl.add_mesh(img_sfc2, clim=[-vmax, vmax], cmap='seismic', show_scalar_bar=False)
+pl.show()
 
 pl = pv.Plotter()
 pl.add_volume(np.transpose(diff_hr, (2,1,0)), clim=[-vmax, vmax], cmap='seismic', opacity=[1,0,1])
@@ -86,10 +116,21 @@ plt.colorbar()
 plt.show()
 plt.close()
 
-plt.figure(figsize = (20,5))
-plt.hist(diff_hr.flatten(),bins=1000)
+plt.figure(figsize = (7,7))
+plt.imshow(diff_hr_sfc, origin='lower', cmap='seismic', vmin=-vmax, vmax=vmax)
+plt.colorbar()
 plt.show()
 plt.close()
+
+
+# plt.figure(figsize = (5,5))
+# plt.hist(diff_hr.flatten(),bins=5000, color='black')
+# plt.xlim([-1, 1])
+# plt.grid(which='major', alpha=0.3)
+# plt.xlabel('Difference (Pesc - naive)')
+# plt.show()
+# plt.close()
+
 
 
 # hr_hist = diff_hr.flatten()
