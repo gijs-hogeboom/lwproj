@@ -96,7 +96,7 @@ y_Nphot_pesc1_for_stdev_pesc0_interpolated = [arr_Nphot[0]] + list(y_Nphot_pesc1
 arr_Nphot_interpolated                     = [f_Nphot_pesc0(f_stdev_pesc1(arr_Nphot[0]))] + list(arr_Nphot[y_Nphot_pesc1_for_stdev_pesc0 >= arr_Nphot[0]])
 
 
-print(f_Nphot_pesc1(f_stdev_pesc0(27)))
+print(f_Nphot_pesc1(f_stdev_pesc0(32)))
 
 plt.figure(figsize = (15,5))
 plt.subplot(1,2,1)

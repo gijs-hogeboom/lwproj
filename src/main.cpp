@@ -3,7 +3,7 @@
 #include <sstream>
 #include <nlohmann/json.hpp>
 #include <chrono>
-#include <netcdf>
+#include <netcdf.h>
 #include "gnuplot-iostream.h"
 
 #include "MC.h"
@@ -20,9 +20,6 @@ int main(int argc, char* argv[])
     using std::chrono::duration_cast;
     using std::chrono::duration;
     using std::chrono::milliseconds;
-
-    using namespace netCDF;
-    using namespace netCDF::exceptions;
     
 
 
@@ -65,7 +62,7 @@ int main(int argc, char* argv[])
 
     std::string CASE = arg1;
     bool ENABLE_MC = true;                        // Enables Monte Carlo algorithm
-    bool ENABLE_PP = true;                        // Enables plane-parallel algorithm
+    bool ENABLE_PP = false;                        // Enables plane-parallel algorithm
 
     std::string INTERCELL_TECHNIQUE = arg2;       // {uniform, power, power-gradient}
 
@@ -176,11 +173,11 @@ int main(int argc, char* argv[])
     else if (caseID == "s3D") // simple 3D cases
     {
         // Opening s3Dcases.json
-        std::fstream file_cases("../mclw/data_input/" + caseID + "cases.json");
+        std::fstream file_cases("../data_input/" + caseID + "cases.json");
     
         if (!file_cases.is_open())
         {
-            std::cerr << "Could not open " + caseID + "cases.json!" << std::endl;
+            std::cerr << "Could not open ../data_input/" + caseID + "cases.json!" << std::endl;
             return 1;
         }
         
@@ -299,69 +296,94 @@ int main(int argc, char* argv[])
     }
     else if (caseID == "r3D") // "Real" 3D cases (from the gpoints data)
     {
+        #define NC_CHECK(call)                                      \
+        do {                                                        \
+            int status = call;                                     \
+            if (status != NC_NOERR) {                               \
+                std::cerr << "NetCDF error: "                       \
+                        << nc_strerror(status)                   \
+                        << " at line " << __LINE__ << std::endl; \
+                std::exit(EXIT_FAILURE);                            \
+            }                                                       \
+        } while (0)
+
         // Opening raw 3D lw optics + grid info .nc files
-        NcFile nc_optics("../data_input/lw_optical_properties.nc", NcFile::read); 
-        NcFile nc_gridinfo("../data_input/grid.nc", NcFile::read);
+        int ncid_optics, ncid_grid;
+
+        NC_CHECK(nc_open("../data_input/lw_optical_properties.nc", NC_NOWRITE, &ncid_optics));
+        NC_CHECK(nc_open("../data_input/grid.nc", NC_NOWRITE, &ncid_grid));
+
 
         // Loading vars
-        NcVar nc_tau = nc_optics.getVar("lw_tau");
-        NcVar nc_Batm = nc_optics.getVar("lay_source");
-        NcVar nc_Bsfc = nc_optics.getVar("sfc_source");
-        NcVar nc_SSA = nc_optics.getVar("lw_ssa");
-        NcVar nc_ASY = nc_optics.getVar("lw_asy");
+        int var_tau, var_Batm, var_Bsfc, var_SSA, var_ASY;
+        int var_z, var_zh;
 
-        NcVar nc_arr_z  = nc_gridinfo.getVar("lay");
-        NcVar nc_arr_zh = nc_gridinfo.getVar("lev");
+        NC_CHECK(nc_inq_varid(ncid_optics, "lw_tau",     &var_tau));
+        NC_CHECK(nc_inq_varid(ncid_optics, "lay_source", &var_Batm));
+        NC_CHECK(nc_inq_varid(ncid_optics, "sfc_source", &var_Bsfc));
+        NC_CHECK(nc_inq_varid(ncid_optics, "lw_ssa",     &var_SSA));
+        NC_CHECK(nc_inq_varid(ncid_optics, "lw_asy",     &var_ASY));
+
+        NC_CHECK(nc_inq_varid(ncid_grid,   "lay",        &var_z));
+        NC_CHECK(nc_inq_varid(ncid_grid,   "lev",        &var_zh));
 
 
         // Obtaining information
-        auto dims = nc_tau.getDims();
-        long unsigned int nGpts = dims[0].getSize();
-        long unsigned int itot_local = dims[1].getSize();
-        long unsigned int jtot_local = dims[2].getSize();
-        long unsigned int ktot_local = dims[3].getSize();
+        int ndims;
+        int dimids[NC_MAX_DIMS];
+
+        NC_CHECK(nc_inq_var(ncid_optics, var_tau, nullptr, nullptr, &ndims, dimids, nullptr));
+
+        size_t nGpts, itot_local, jtot_local, ktot_local;
+
+        NC_CHECK(nc_inq_dimlen(ncid_optics, dimids[0], &nGpts));
+        NC_CHECK(nc_inq_dimlen(ncid_optics, dimids[1], &itot_local));
+        NC_CHECK(nc_inq_dimlen(ncid_optics, dimids[2], &jtot_local));
+        NC_CHECK(nc_inq_dimlen(ncid_optics, dimids[3], &ktot_local));
+
         int n_volumes = itot_local * jtot_local * ktot_local;
-        int n_tiles = jtot_local * ktot_local;
+        int n_tiles   = jtot_local * ktot_local;
 
-        std::vector<double> darr_z;
-        std::vector<double> darr_zh;
-        std::vector<double> darr_dz;
-        std::vector<double> dfield_atm_kext;
-        std::vector<double> dfield_atm_B;
-        std::vector<double> dfield_sfc_B;
-        std::vector<double> dfield_atm_SSA;
-        std::vector<double> dfield_atm_ASY;
 
-        // Resizing vectors to fit data
-        dfield_atm_kext.resize(n_volumes);
-        dfield_atm_B.resize(n_volumes);
-        dfield_atm_SSA.resize(n_volumes);
-        dfield_atm_ASY.resize(n_volumes);
-        dfield_sfc_B.resize(n_tiles);
+        // Initializing data vectors
+        std::vector<double> darr_z(itot_local);
+        std::vector<double> darr_zh(itot_local + 1);
+        std::vector<double> darr_dz(itot_local);
 
-        darr_z.resize(itot_local);
-        darr_zh.resize(itot_local + 1);
-        darr_dz.resize(itot_local);
+        std::vector<double> dfield_atm_kext(n_volumes);
+        std::vector<double> dfield_atm_B(n_volumes);
+        std::vector<double> dfield_atm_SSA(n_volumes);
+        std::vector<double> dfield_atm_ASY(n_volumes);
+        std::vector<double> dfield_sfc_B(n_tiles);
+
 
 
         // Filling in data vectors
-        nc_arr_z.getVar(darr_z.data());
-        nc_arr_zh.getVar(darr_zh.data());
+        NC_CHECK(nc_get_var_double(ncid_grid, var_z,  darr_z.data()));
+        NC_CHECK(nc_get_var_double(ncid_grid, var_zh, darr_zh.data()));
 
-        for (int i = 0; i < itot_local; i++)
-        {
+        for (size_t i = 0; i < itot_local; i++) {
             darr_dz[i] = darr_zh[i+1] - darr_zh[i];
         }
 
-        long unsigned int chosen_gpt = std::stoi(CASE.substr(3, CASE.length()));
-        nc_tau.getVar(  {chosen_gpt, 0, 0, 0}, {1, itot_local, jtot_local, ktot_local}, dfield_atm_kext.data());
-        nc_Batm.getVar( {chosen_gpt, 0, 0, 0}, {1, itot_local, jtot_local, ktot_local}, dfield_atm_B.data());
-        nc_SSA.getVar(  {chosen_gpt, 0, 0, 0}, {1, itot_local, jtot_local, ktot_local}, dfield_atm_SSA.data());
-        nc_ASY.getVar(  {chosen_gpt, 0, 0, 0}, {1, itot_local, jtot_local, ktot_local}, dfield_atm_ASY.data());
-        nc_Bsfc.getVar( {chosen_gpt, 0, 0},    {1, jtot_local, ktot_local},             dfield_sfc_B.data());
-        
-        dx = 100.;
-        dy = 100.;     
+
+        // Reading G-point - Atmosphere
+        size_t chosen_gpt = std::stoul(CASE.substr(3));
+
+        size_t start4[4] = { chosen_gpt, 0, 0, 0 };
+        size_t count4[4] = { 1, itot_local, jtot_local, ktot_local };
+
+        NC_CHECK(nc_get_vara_double(ncid_optics, var_tau,  start4, count4, dfield_atm_kext.data()));
+        NC_CHECK(nc_get_vara_double(ncid_optics, var_Batm, start4, count4, dfield_atm_B.data()));
+        NC_CHECK(nc_get_vara_double(ncid_optics, var_SSA,  start4, count4, dfield_atm_SSA.data()));
+        NC_CHECK(nc_get_vara_double(ncid_optics, var_ASY,  start4, count4, dfield_atm_ASY.data()));
+
+        // Reading G-Point - Surface 
+        size_t start3[3] = { chosen_gpt, 0, 0 };
+        size_t count3[3] = { 1, jtot_local, ktot_local };
+
+        NC_CHECK(nc_get_vara_double(ncid_optics, var_Bsfc, start3, count3, dfield_sfc_B.data()));
+
         
         // casting doubles to floats, filling in actual values
         itot = (int) itot_local;
@@ -380,7 +402,7 @@ int main(int argc, char* argv[])
 
         for (int i = 0; i < itot; i++)
         {
-            arr_z[i] = (float) darr_z[i];
+            arr_z[i]  = (float) darr_z[i];
             arr_zh[i] = (float) darr_zh[i];
             arr_dz[i] = (float) darr_dz[i];
             for (int j = 0; j < jtot; j++)
@@ -390,9 +412,9 @@ int main(int argc, char* argv[])
                     int idx = i * n_tiles + j*ktot + k;
 
                     field_atm_kext[idx] = (float) (dfield_atm_kext[idx] / arr_dz[i]);
-                    field_atm_B[idx] = (float) dfield_atm_B[idx];
-                    field_atm_SSA[idx] = (float) dfield_atm_SSA[idx];
-                    field_atm_ASY[idx] = (float) dfield_atm_ASY[idx];
+                    field_atm_B[idx]    = (float) dfield_atm_B[idx];
+                    field_atm_SSA[idx]  = (float) dfield_atm_SSA[idx];
+                    field_atm_ASY[idx]  = (float) dfield_atm_ASY[idx];
 
                     if (i == 0)
                     {
@@ -402,6 +424,9 @@ int main(int argc, char* argv[])
             }
         }
         arr_zh[itot] = (float) darr_zh[itot]; // filling in final upper value, not captured in the loop
+
+        dx = 100.;
+        dy = 100.;
     }
 
     
@@ -604,9 +629,10 @@ int main(int argc, char* argv[])
         std::cout << "                Done!" << std::endl;
         std::cout << "Parameters:" << std::endl;
         std::cout << "   | Case:        " << CASE << std::endl;
-        std::cout << "   | IT sampling: " << INTERCELL_TECHNIQUE << std::endl;
+        std::cout << "   | Sampling:    " << INTERCELL_TECHNIQUE << std::endl;
         std::cout << "   | Nphot:       " << Nphot_pow << std::endl;
         std::cout << "   | Pesc_mode:   " << Pesc_mode << std::endl;
+        std::cout << "   | scattering:  " << enable_scattering << std::endl;
         std::cout << "Timers:" << std::endl;
         std::cout << "   | MC time:     " << MC_time.count()/1000 << std::endl;
         std::cout << "   | PP time:     " << PP_time.count()/1000 << std::endl;

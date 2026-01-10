@@ -179,8 +179,8 @@ std::vector<float> run_plane_parallel(const std::vector<float>& arr_z,
                 int idx_atm = i*n_tiles + jk;
                 field_atm_heating_rates[idx_atm] = arr_heating_rates[i];
             }
-            field_sfc_fluxes[jk] = (arr_F_downh[0] - arr_F_uph[0])*dx*dy;
-            field_TOA_fluxes[jk] = (arr_F_uph[itoth-1] - arr_F_downh[itoth-1])*dx*dy;
+            field_sfc_fluxes[jk] = arr_F_downh[0] - arr_F_uph[0];
+            field_TOA_fluxes[jk] = arr_F_uph[itoth-1] - arr_F_downh[itoth-1];
         }
     }
 

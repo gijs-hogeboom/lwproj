@@ -13,6 +13,11 @@
 #include <algorithm>
 #include <fstream>
 
+#ifdef __FAST_MATH__
+#define rsqrtf(x) __builtin_rsqrtf(x)
+#endif
+
+
 
 // Constants
 namespace cfloat
@@ -21,6 +26,7 @@ namespace cfloat
     const float RHO = 1.225;
     const float CP = 1004;
     const float u = pow(2, -24);
+    const float inv_2pow24 = 1.0f / 16777216.0f;
 }
 
 namespace cdouble
@@ -85,19 +91,19 @@ void LOGvars(const FirstVal first, const RestVals... rest)
 }
 
 
-inline double kahan_sum(const std::vector<double>& values) 
-{
-    // from Mr. Chat
-    double sum = 0.0;
-    double c = 0.0;  // Compensation
-    for (double x : values) {
-        double y = x - c;
-        double t = sum + y;
-        c = (t - sum) - y;
-        sum = t;
-    }
-    return sum;
-}
+// inline double kahan_sum(const std::vector<double>& values) 
+// {
+//     // from Mr. Chat
+//     double sum = 0.0;
+//     double c = 0.0;  // Compensation
+//     for (double x : values) {
+//         double y = x - c;
+//         double t = sum + y;
+//         c = (t - sum) - y;
+//         sum = t;
+//     }
+//     return sum;
+// }
 
 inline float kahan_sum(const std::vector<float>& values) 
 {
@@ -120,10 +126,10 @@ inline float estimate_max_numerical_float_error(float s)
 }
 
 
-inline double estimate_max_numerical_double_error(double s)
-{
-    return cdouble::u * s;
-}
+// inline double estimate_max_numerical_double_error(double s)
+// {
+//     return cdouble::u * s;
+// }
 
 
 inline std::vector<float> linspace(float start, float end, int N)
@@ -156,7 +162,7 @@ inline float trapezoid(const std::vector<float>& arr_x,
         values[i] = Y;
     }
 
-    float result = std::accumulate(values.begin(), values.end(), 0.0);
+    float result = std::accumulate(values.begin(), values.end(), 0.0f);
     return result;
 }
 
@@ -191,14 +197,14 @@ struct Xoshiro256ss {
         return result;
     }
 
-    inline double next_double() {
-        // Take upper 53 bits of next() and convert to double in [0,1)
-        return (next() >> 11) * (1.0 / 9007199254740992.0);
-    }
+    // inline double next_double() {
+    //     // Take upper 53 bits of next() and convert to double in [0,1)
+    //     return (next() >> 11) * (1.0 / 9007199254740992.0);
+    // }
 
     inline float next_float() {
         // Take upper 24 bits of next() and convert to float in [0,1)
-        return (next() >> 40) * (1.0 / 16777216.0);
+        return (next() >> 40) * cfloat::inv_2pow24;
     }
 
 private:
@@ -220,49 +226,49 @@ struct FastRNG {
 };
 
 
-struct AliasTable_double {
-    std::vector<double> prob;
-    std::vector<int> alias;
-    std::vector<double> weights;
-    int n;
+// struct AliasTable_double {
+//     std::vector<double> prob;
+//     std::vector<int> alias;
+//     std::vector<double> weights;
+//     int n;
 
-    AliasTable_double(const std::vector<double>& weights_in) {
-        n = weights_in.size();
-        prob.resize(n);
-        alias.resize(n);
+//     AliasTable_double(const std::vector<double>& weights_in) {
+//         n = weights_in.size();
+//         prob.resize(n);
+//         alias.resize(n);
 
-        std::vector<double> scaled(weights_in);
-        double sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
-        for (auto& w : scaled) w *= n / sum;
+//         std::vector<double> scaled(weights_in);
+//         double sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
+//         for (auto& w : scaled) w *= n / sum;
 
-        weights.resize(n);
-        for (int i = 0; i < n; i++) weights[i] = weights_in[i] / sum;
+//         weights.resize(n);
+//         for (int i = 0; i < n; i++) weights[i] = weights_in[i] / sum;
         
 
 
-        std::queue<int> small, large;
-        for (int i = 0; i < n; ++i)
-            (scaled[i] < 1.0 ? small : large).push(i);
+//         std::queue<int> small, large;
+//         for (int i = 0; i < n; ++i)
+//             (scaled[i] < 1.0 ? small : large).push(i);
 
-        while (!small.empty() && !large.empty()) {
-            int s = small.front(); small.pop();
-            int l = large.front(); large.pop();
-            prob[s] = scaled[s];
-            alias[s] = l;
-            scaled[l] = scaled[l] + scaled[s] - 1.0;
-            (scaled[l] < 1.0 ? small : large).push(l);
-        }
+//         while (!small.empty() && !large.empty()) {
+//             int s = small.front(); small.pop();
+//             int l = large.front(); large.pop();
+//             prob[s] = scaled[s];
+//             alias[s] = l;
+//             scaled[l] = scaled[l] + scaled[s] - 1.0;
+//             (scaled[l] < 1.0 ? small : large).push(l);
+//         }
 
-        while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
-        while (!small.empty()) { prob[small.front()] = 1.0; small.pop(); }
-    }
+//         while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
+//         while (!small.empty()) { prob[small.front()] = 1.0; small.pop(); }
+//     }
 
-    inline int sample(FastRNG& rng) const {
-        int i = rng.rng.next() % n;
-        double r = rng.rng.next_double();
-        return (r < prob[i]) ? i : alias[i];
-    }
-};
+//     inline int sample(FastRNG& rng) const {
+//         int i = rng.rng.next() % n;
+//         double r = rng.rng.next_double();
+//         return (r < prob[i]) ? i : alias[i];
+//     }
+// };
 
 
 struct AliasTable_float {
@@ -277,7 +283,7 @@ struct AliasTable_float {
         alias.resize(n);
 
         std::vector<float> scaled(weights_in);
-        float sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
+        float sum = std::accumulate(scaled.begin(), scaled.end(), 0.0f);
         for (auto& w : scaled) w *= n / sum;
 
         weights.resize(n);
@@ -309,7 +315,7 @@ struct AliasTable_float {
 
 
 
-inline std::string f_dz_string(double value) {
+inline std::string f_dz_string(float value) {
     std::ostringstream temp;
     temp << std::fixed << std::setprecision(5) << value;
     std::string out = temp.str();
@@ -317,11 +323,11 @@ inline std::string f_dz_string(double value) {
     return out;
 }
 
-inline std::string f_Pesccurve_name(int dx, int dy, double dz)
+inline std::string f_Pesccurve_name(int dx, int dy, float dz)
 {
     std::string dzs = f_dz_string(dz);
     std::ostringstream out;
-    out << "/home/gijs-hogeboom/dev/lwproj/data_input/Esc_curves/Esc_kext_curve_" << (int) dx << "_" << (int) dy << "_" << dzs << ".csv";
+    out << "../data_input/Esc_curves/Esc_kext_curve_" << (int) dx << "_" << (int) dy << "_" << dzs << ".csv";
     std::string filename = out.str();
     return filename;
 }
@@ -331,56 +337,56 @@ inline std::string f_Pesccurve_name(int dx, int dy, double dz)
 
 
 
-class LinearInterpolator_double {
-public:
-    LinearInterpolator_double(const std::vector<double>& x,
-                              const std::vector<double>& y)
-        : xs(x), ys(y)
-    {
-        if (xs.size() != ys.size() || xs.size() < 2) {
-            throw std::invalid_argument("x and y arrays must have same size >= 2");
-        }
+// class LinearInterpolator_double {
+// public:
+//     LinearInterpolator_double(const std::vector<double>& x,
+//                               const std::vector<double>& y)
+//         : xs(x), ys(y)
+//     {
+//         if (xs.size() != ys.size() || xs.size() < 2) {
+//             throw std::invalid_argument("x and y arrays must have same size >= 2");
+//         }
 
-        // ensure strictly increasing x
-        for (size_t i = 1; i < xs.size(); ++i) {
-            if (xs[i] <= xs[i - 1]) {
-                throw std::invalid_argument("x values must be strictly increasing");
-            }
-        }
-    }
+//         // ensure strictly increasing x
+//         for (size_t i = 1; i < xs.size(); ++i) {
+//             if (xs[i] <= xs[i - 1]) {
+//                 throw std::invalid_argument("x values must be strictly increasing");
+//             }
+//         }
+//     }
 
-    // interpolate y at value xq
-    inline double operator()(double xq) const {
-        // out-of-range -> throw
-        if (xq < xs.front() || xq > xs.back()) {
-            throw std::out_of_range("query x is outside interpolation range");
-        }
+//     // interpolate y at value xq
+//     inline double operator()(double xq) const {
+//         // out-of-range -> throw
+//         if (xq < xs.front() || xq > xs.back()) {
+//             throw std::out_of_range("query x is outside interpolation range");
+//         }
 
-        // find first element greater than xq
-        auto it = std::lower_bound(xs.begin(), xs.end(), xq);
+//         // find first element greater than xq
+//         auto it = std::lower_bound(xs.begin(), xs.end(), xq);
         
-        if (it == xs.begin())
-            return ys.front();
+//         if (it == xs.begin())
+//             return ys.front();
         
-        if (it == xs.end())
-            return ys.back();
+//         if (it == xs.end())
+//             return ys.back();
 
-        // indices of bounding interval
-        size_t i1 = it - xs.begin();
-        size_t i0 = i1 - 1;
+//         // indices of bounding interval
+//         size_t i1 = it - xs.begin();
+//         size_t i0 = i1 - 1;
 
-        double x0 = xs[i0], x1 = xs[i1];
-        double y0 = ys[i0], y1 = ys[i1];
+//         double x0 = xs[i0], x1 = xs[i1];
+//         double y0 = ys[i0], y1 = ys[i1];
 
-        // linear interpolation
-        double t = (xq - x0) / (x1 - x0);
-        return y0 + t * (y1 - y0);
-    }
+//         // linear interpolation
+//         double t = (xq - x0) / (x1 - x0);
+//         return y0 + t * (y1 - y0);
+//     }
 
-private:
-    std::vector<double> xs;
-    std::vector<double> ys;
-};
+// private:
+//     std::vector<double> xs;
+//     std::vector<double> ys;
+// };
 
 
 
@@ -447,16 +453,66 @@ inline std::size_t count_lines(std::fstream& file) {
     return count;
 }
 
-
-
-
-struct Vec3
+struct Vec3double
 {
     double x, y, z;
-    Vec3(double x_in, double y_in, double z_in) : x(x_in), y(y_in), z(z_in) {}
+    Vec3double(double x_in, double y_in, double z_in) : x(x_in), y(y_in), z(z_in) {}
 };
 
-inline Vec3 generate_angle_HG(double dx, double dy, double dz, double g, FastRNG& rng)
+
+struct Vec3float
+{
+    float x, y, z;
+    Vec3float(float x_in, float y_in, float z_in) : x(x_in), y(y_in), z(z_in) {}
+};
+
+inline Vec3float generate_angle_HG_float(float dx, float dy, float dz, float g, FastRNG& rng)
+{
+    float mu;
+    if (fabsf(g) < 1e-6f) {
+        mu = rng.uniform()*2.f - 1.f;
+    } else {
+        float xi = rng.uniform();
+        float gg = g * g;
+        float temp = (1.f - gg) / (1.f - g + 2.f * g * xi);
+        mu = (1.f + gg - temp * temp) / (2.f * g);
+    }
+
+    float phi = rng.uniform()*2*cfloat::PI;
+
+    float sin_phi = sinf(phi);
+    float cos_phi = cosf(phi);
+    float sin_theta = sqrtf(1.f - mu*mu);
+
+    // Creating tangent and bi-tangent lines (t and b)
+    float tdx, tdy, tdz, bdx, bdy, bdz, vdx, vdy, vdz;
+    float dx2dy2 = dx*dx + dy*dy;
+    float inv_tnorm = 1.f/sqrtf(dx2dy2);
+    float inv_bnorm = 1.f/sqrtf(dx2dy2 + dz*dz);
+
+    // t = up "x" u, normalized to length = 1
+    // b = u "x" t, normalized to length = 1
+
+    tdx = -dy * inv_tnorm;
+    tdy = dx * inv_tnorm;
+    tdz = 0.f;
+
+    bdx = -tdy * dz * inv_bnorm;
+    bdy = tdx * dz * inv_bnorm;
+    bdz = dx2dy2 * inv_tnorm * inv_bnorm;
+
+    vdx =   sin_theta * cos_phi * tdx +   sin_theta * sin_phi * bdx + mu * dx;
+    vdy =   sin_theta * cos_phi * tdy +   sin_theta * sin_phi * bdy + mu * dy;
+    vdz = /*sin_theta * cos_phi * tdz +*/ sin_theta * sin_phi * bdz + mu * dz; // tdz = 0.
+
+    Vec3float vec_out(vdx, vdy, vdz);
+
+    return vec_out;
+}   
+
+
+
+inline Vec3double generate_angle_HG_double(double dx, double dy, double dz, double g, FastRNG& rng)
 {
     g = (g < 1e-6) ? 1e-6 : g;
 
@@ -489,9 +545,9 @@ inline Vec3 generate_angle_HG(double dx, double dy, double dz, double g, FastRNG
     vdy = sin_theta * cos_phi * tdy + sin_theta * sin_phi * bdy + mu * dy;
     vdz = sin_theta * cos_phi * tdz + sin_theta * sin_phi * bdz + mu * dz;
 
-    double inv_vnorm = 1/std::sqrt(vdx*vdx + vdy*vdy + vdz*vdz);
+    float inv_vnorm = 1/std::sqrt(vdx*vdx + vdy*vdy + vdz*vdz);
 
-    Vec3 vec_out(vdx*inv_vnorm, 
+    Vec3double vec_out(vdx*inv_vnorm, 
                  vdy*inv_vnorm, 
                  vdz*inv_vnorm);
 

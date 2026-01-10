@@ -29,7 +29,7 @@ hr_MC = hr1.reshape((itot, jtot, ktot))
 
 with open(os.path.join(path_MC, file_sfc_MC), 'rb') as f:
     jtot, ktot = np.fromfile(f, dtype=np.int32, count=2)
-    hr_sfc1 = np.fromfile(f, dtype=np.float32) / (1.225 * 1004 * 100 * 100) * 86400
+    hr_sfc1 = np.fromfile(f, dtype=np.float32) / (1.225 * 1004 * 100 * 100 * 100) * 86400
 hr_sfc_MC = hr_sfc1.reshape((jtot, ktot))
 
 with open(os.path.join(path_MC, file_TOA_MC), 'rb') as f:
@@ -45,7 +45,7 @@ hr_PP = hr2.reshape((itot, jtot, ktot))
 
 with open(os.path.join(path_PP, file_sfc_PP), 'rb') as f:
     jtot, ktot = np.fromfile(f, dtype=np.int32, count=2)
-    hr_sfc2 = np.fromfile(f, dtype=np.float32) / (1.225 * 1004 * 100 * 100) * 86400
+    hr_sfc2 = np.fromfile(f, dtype=np.float32) / (1.225 * 1004 * 100 * 100 * 100) * 86400
 hr_sfc_PP = hr_sfc2.reshape((jtot, ktot))
 
 with open(os.path.join(path_PP, file_TOA_PP), 'rb') as f:
@@ -76,11 +76,10 @@ diff_img_TOA = pv.ImageData(dimensions=(ktot, jtot, 1))
 diff_img_TOA['Values'] = diff_hr_TOA.ravel()
 
 
-vmax_atm = np.quantile(np.abs(hr_PP), 0.994)
-vmax_sfc = np.quantile(np.abs(hr_sfc_PP), 0.994)
+vmax_atm = np.max(np.abs(hr_PP))
+vmax_sfc = np.max(np.abs(hr_sfc_PP))
 print('PP - MC')
 vmax = np.min([vmax_atm, vmax_sfc])
-vmax = 15
 
 
 if Case[0] == 's':
@@ -94,18 +93,18 @@ diff_hr = diff_hr[:z_upper, :, :]
 
 
 pl = pv.Plotter()
-pl.add_volume(np.transpose(hr_MC, (2,1,0)), clim=[-vmax, vmax], cmap='seismic', opacity=[1,0,1])
-pl.add_mesh(img_sfc_MC, clim=[-vmax, vmax], cmap='seismic', show_scalar_bar=False)
+pl.add_volume(np.transpose(hr_MC, (2,1,0)), clim=[-vmax_atm, vmax_atm], cmap='seismic', opacity=[1,0,1])
+pl.add_mesh(img_sfc_MC, clim=[-vmax_sfc, vmax_sfc], cmap='seismic')
 pl.show()
 
 pl = pv.Plotter()
-pl.add_volume(np.transpose(hr_PP, (2,1,0)), clim=[-vmax, vmax], cmap='seismic', opacity=[1, 0, 1])
-pl.add_mesh(img_sfc_PP, clim=[-vmax, vmax], cmap='seismic', show_scalar_bar=False)
+pl.add_volume(np.transpose(hr_PP, (2,1,0)), clim=[-vmax_atm, vmax_atm], cmap='seismic', opacity=[1, 0, 1])
+pl.add_mesh(img_sfc_PP, clim=[-vmax_sfc, vmax_sfc], cmap='seismic')
 pl.show()
 
 pl = pv.Plotter()
 pl.add_volume(np.transpose(diff_hr, (2,1,0)), clim=[-vmax, vmax], cmap='seismic', opacity=[1,0,1])
-pl.add_mesh(diff_img_sfc, clim=[-vmax, vmax], cmap='seismic', show_scalar_bar=False)
+pl.add_mesh(diff_img_sfc, clim=[-vmax, vmax], cmap='seismic')
 pl.show()
 
 if Case[0] == 's':

@@ -453,9 +453,9 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
         std::string atm_output_name = "hr_3D_atm_"   + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
         std::string sfc_output_name = "flux_3D_sfc_" + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
         std::string TOA_output_name = "flux_3D_TOA_" + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
-        std::ofstream atm_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + atm_output_name, std::ios::binary);
-        std::ofstream sfc_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + sfc_output_name, std::ios::binary);
-        std::ofstream TOA_output("/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/" + TOA_output_name, std::ios::binary);
+        std::ofstream atm_output("../data_output/raw_output_3D/" + atm_output_name, std::ios::binary);
+        std::ofstream sfc_output("../data_output/raw_output_3D/" + sfc_output_name, std::ios::binary);
+        std::ofstream TOA_output("../data_output/raw_output_3D/" + TOA_output_name, std::ios::binary);
         int atm_dims[3] = {itot, jtot, ktot};
         int sfc_dims[2] = {jtot, ktot};
 
