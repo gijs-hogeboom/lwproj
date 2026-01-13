@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 
 
     // Handling input
-    std::string arg1 = "gpt21";
+    std::string arg1 = "full";
     std::string arg2 = "power";
     float arg3 = 20.;
     bool arg4 = false;
@@ -108,6 +108,8 @@ int main(int argc, char* argv[])
 
     // Reading the case json file
     std::string caseID = CASE.substr(0, 3);
+    
+    float kext_minval = 1e-10;
 
 
     // File input handling
@@ -159,7 +161,7 @@ int main(int argc, char* argv[])
                 for (int k = 0; k < ktot; k++)
                 {
                     int idx = i*jtot*ktot + j*ktot + k;
-                    field_atm_kext[idx] = arr_kext[i];
+                    field_atm_kext[idx] = std::max(arr_kext[i], kext_minval);
                     field_atm_B[idx]    = arr_Batm[i];
                     field_atm_SSA[idx]  = arr_SSA[i]; // Temporary, due to lack of data
                     field_atm_ASY[idx]  = arr_ASY[i]; // Temporary, due to lack of data
@@ -270,7 +272,7 @@ int main(int argc, char* argv[])
             {
                 int idx = i*jtot*ktot + j*ktot + k;
 
-                field_atm_kext[idx] = col_kext_open[i];
+                field_atm_kext[idx] = std::max(col_kext_open[i], kext_minval);
                 field_atm_B[idx]    = col_Batm_open[i];
                 field_atm_SSA[idx]  = col_SSA_open[i];
                 field_atm_ASY[idx]  = col_ASY_open[i];
@@ -285,7 +287,7 @@ int main(int argc, char* argv[])
             {
                 int idx = i*jtot*ktot + j*ktot + k;
 
-                field_atm_kext[idx] = col_kext_cloud[i];
+                field_atm_kext[idx] = std::max(col_kext_cloud[i], kext_minval);
                 field_atm_B[idx]    = col_Batm_cloud[i];
                 field_atm_SSA[idx]  = col_SSA_cloud[i];
                 field_atm_ASY[idx]  = col_ASY_cloud[i];
@@ -411,7 +413,7 @@ int main(int argc, char* argv[])
                 {
                     int idx = i * n_tiles + j*ktot + k;
 
-                    field_atm_kext[idx] = (float) (dfield_atm_kext[idx] / arr_dz[i]);
+                    field_atm_kext[idx] = std::max((float) (dfield_atm_kext[idx] / arr_dz[i]), kext_minval);
                     field_atm_B[idx]    = (float) dfield_atm_B[idx];
                     field_atm_SSA[idx]  = (float) dfield_atm_SSA[idx];
                     field_atm_ASY[idx]  = (float) dfield_atm_ASY[idx];
@@ -601,24 +603,16 @@ int main(int argc, char* argv[])
 
 
 
-    ////////////// Plotting results //////////////////////////
-    if (plot_results)
-    {
-        Gnuplot gp;
 
-        std::vector<std::pair<float,float>> hr_1D, hr_3D;
-        for (int i = 0; i < itot; i++)
-        {
-            hr_1D.emplace_back(heating_rates_PP_in[i], arr_z_in[i]);
-            hr_3D.emplace_back(heating_rates_MC_in[i], arr_z_in[i]);
-        }
-        
-        gp << "set yrange [0 : 5000]\n"
-        << "plot '-' with lines title 'PP', '-' with lines title 'MC'\n";
-        gp.send1d(hr_1D);
-        gp.send1d(hr_3D);
-    }
-
+    /////////////// Appending time data to time table //////////////////////
+    std::ofstream file_timedata("../data_output/time_table.dat", std::ios_base::app);
+    file_timedata << CASE << ',' 
+                  << Nphot_pow << ','
+                  << INTERCELL_TECHNIQUE << ','
+                  << Pesc_mode << ','
+                  << enable_scattering << ','
+                  << MC_time.count()/1000 << std::endl;
+    file_timedata.close();
 
 
 

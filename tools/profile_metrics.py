@@ -7,14 +7,14 @@ from scipy.interpolate import interp1d
 
 
 mode = '3D'
-CASE = 's3D1'
+CASE = 'r3D4'
 INTERCELL_TECHNIQUE = 'power'
 # Nphot = 20
 # Pesc = 0
 scattering_enabled = 0
 
-Niter = 10
-arr_Nphot = np.arange(16, 29, 1)
+Niter = 12
+arr_Nphot = np.arange(22, 32, 1)
 
 
 def f_converge(x, a, b, c):
@@ -48,7 +48,7 @@ if mode == '1D':
 
 
 elif mode == '3D':
-    path_in = '/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D'
+    path_in = '/home/gijs-hogeboom/dev/mclw/data_output/raw_output_3D/pesc_exp'
 
 
     # Obtaining shape of raw files
@@ -63,13 +63,13 @@ elif mode == '3D':
         M_Pesc0 = np.zeros((itot, jtot, ktot, Niter))
         M_Pesc1 = np.zeros((itot, jtot, ktot, Niter))
         for i in range(Niter):
-            file_Pesc0 = os.path.join(path_in, f'hr_3D_atm_{CASE}_Nphot{Nphot}_{INTERCELL_TECHNIQUE}_Pesc0_scatter{scattering_enabled}_{i}.dat')
+            file_Pesc0 = os.path.join(path_in, f'hr_3D_atm_{CASE}_Nphot{Nphot}.00_{INTERCELL_TECHNIQUE}_Pesc0_scatter{scattering_enabled}_{i}.dat')
             with open(os.path.join(path_in, file_Pesc0), 'rb') as f:
                 itot, jtot, ktot = np.fromfile(f, dtype=np.int32, count=3)
                 hr = np.fromfile(f, dtype=np.float32)
             hr_Pesc0 = hr.reshape((itot, jtot, ktot))
 
-            file_Pesc1 = os.path.join(path_in, f'hr_3D_atm_{CASE}_Nphot{Nphot}_{INTERCELL_TECHNIQUE}_Pesc1_scatter{scattering_enabled}_{i}.dat')
+            file_Pesc1 = os.path.join(path_in, f'hr_3D_atm_{CASE}_Nphot{Nphot}.00_{INTERCELL_TECHNIQUE}_Pesc1_scatter{scattering_enabled}_{i}.dat')
             with open(os.path.join(path_in, file_Pesc1), 'rb') as f:
                 itot, jtot, ktot = np.fromfile(f, dtype=np.int32, count=3)
                 hr = np.fromfile(f, dtype=np.float32)

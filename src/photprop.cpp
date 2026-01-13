@@ -54,13 +54,17 @@ void photon_propagation(const AliasTable_float& aliastable,
     
     const float eps       = 1e-3f;
     const float tiny_eps  = 1e-12f;
+
+    const int iter_max    = 1e6;
+    const float dx_min    = tiny_eps;
+    const float dy_min    = tiny_eps;
+    const float dz_min    = sinf(atanf(z_max / (float) (iter_max * cell_dx)));
+
     const float w_crit    = 0.5f;
     const float Nfloat    = (float) N;
     const int jktot       = n_tiles;
 
     const float rng_smallest_val = 5.96046e-08f;
-    const float mu_minval_atm    = -1.f + rng_smallest_val;
-    const float mu_minval_sfc    = rng_smallest_val;
     const float tau_maxval       = 20.f;
 
     const int Nphot_batch  = 1024;
@@ -119,14 +123,6 @@ void photon_propagation(const AliasTable_float& aliastable,
             int idx_original = idx_flat; // storing starting position
 
 
-            // Calculating photon power for uniform and power-gradient method
-            if (!(INTERCELL_TECHNIQUE == "power"))
-            {
-                float sample_weight = aliastable.weights[idx_flat];
-                photon_power = field_phi[idx_flat] / (sample_weight * Nfloat);
-            }
-
-
             // Initializing position/direction/optical thickness
             int idx_z, idx_y, idx_x;
             float x, y, z, mu, az, tau;
@@ -153,7 +149,7 @@ void photon_propagation(const AliasTable_float& aliastable,
                 y = (idx_y + rng_local.uniform()) * cell_dy;
                 z = arr_zh[idx_z] + rng_local.uniform()*arr_dz[idx_z];
 
-                mu = rng_local.uniform()*2.f - 1.f, mu_minval_atm;
+                mu = rng_local.uniform()*2.f - 1.f;
                 az = rng_local.uniform()*2.f*cfloat::PI;
 
                 tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
@@ -181,9 +177,9 @@ void photon_propagation(const AliasTable_float& aliastable,
             float dy = s*sinf(az);
             float dz = mu;
 
-            dx = copysignf(fmaxf(fabsf(dx), tiny_eps), dx);
-            dy = copysignf(fmaxf(fabsf(dy), tiny_eps), dy);
-            dz = copysignf(fmaxf(fabsf(dz), tiny_eps), dz);
+            dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
+            dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
+            dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
 
             float w = 1.f;
 
@@ -192,6 +188,15 @@ void photon_propagation(const AliasTable_float& aliastable,
             float dist_x, dist_y, dist_z;
             
 
+            // Calculating photon power for uniform and power-gradient method
+            if (!(INTERCELL_TECHNIQUE == "power"))
+            {
+                float sample_weight = aliastable.weights[idx_flat];
+                photon_power = field_phi[idx_flat] / (sample_weight * Nfloat);
+                // LOGvars(idx_photon, photon_power, sample_weight, field_phi[idx_flat], Nfloat)
+            }
+
+            
 
 
 
@@ -204,12 +209,14 @@ void photon_propagation(const AliasTable_float& aliastable,
                     iter_counter++;
                     if (iter_counter >= 1000000000)
                     {
-                        LOGvars(idx_photon);
-                        LOGvars(idx_x, idx_y, idx_z);
-                        LOGvars(x, y, z);
-                        LOGvars(dx, dy, dz);
-                        LOGvars(tau, w, idx_flat, current_kext, ds, max_s, tau_absorbed, fs);
-                        LOGvars(dist_x, dist_y, dist_z);
+                        // LOGvars(idx_photon);
+                        // LOGvars(idx_x, idx_y, idx_z);
+                        // LOGvars(x, y, z);
+                        // LOGvars(dx, dy, dz);
+                        // LOGvars(tau, w, idx_flat, current_kext*1e6, ds, max_s, tau_absorbed, fs, photon_power);
+                        // LOGvars(dist_x, dist_y, dist_z);
+                        w = 0.f;
+                        break;
                     }
                     // field boundary detection in x direction - wrapping
                     bool at_far_wall_x     = (fabsf(x - x_max) < eps);
@@ -314,9 +321,9 @@ void photon_propagation(const AliasTable_float& aliastable,
                                     dy = s*sinf(az);
                                     dz = mu;
 
-                                    dx = copysignf(fmaxf(fabsf(dx), tiny_eps), dx);
-                                    dy = copysignf(fmaxf(fabsf(dy), tiny_eps), dy);
-                                    dz = copysignf(fmaxf(fabsf(dz), tiny_eps), dz);
+                                    dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
+                                    dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
+                                    dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
 
                                     tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
                                     continue;
@@ -334,9 +341,9 @@ void photon_propagation(const AliasTable_float& aliastable,
                                 dy = s*sinf(az);
                                 dz = mu;
 
-                                dx = copysignf(fmaxf(fabsf(dx), tiny_eps), dx);
-                                dy = copysignf(fmaxf(fabsf(dy), tiny_eps), dy);
-                                dz = copysignf(fmaxf(fabsf(dz), tiny_eps), dz);
+                                dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
+                                dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
+                                dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
 
                                 tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
                                 continue;
@@ -345,15 +352,13 @@ void photon_propagation(const AliasTable_float& aliastable,
                         break;
                     }
                     
+
+
                     // Updating position
                     idx_flat = idx_z*jktot + idx_y*ktot + idx_x;
 
                     // Loading kext
                     float current_kext = field_kext[idx_flat];
-
-
-                    if ((idx_flat < 0) | (idx_flat >= n_volumes)) {LOGvars(idx_photon); LOGvars(iter_counter, idx_x, idx_y, idx_z, tau, w, current_kext, dx, dy, dz, idx_flat);}
-
 
                     // Scanning collision with cell boundaries
                     float time_x, time_y, time_z;
@@ -506,9 +511,9 @@ void photon_propagation(const AliasTable_float& aliastable,
                                         dy = vec_new.y;
                                         dz = vec_new.z;
 
-                                        dx = copysignf(fmaxf(fabsf(dx), tiny_eps), dx);
-                                        dy = copysignf(fmaxf(fabsf(dy), tiny_eps), dy);
-                                        dz = copysignf(fmaxf(fabsf(dz), tiny_eps), dz);
+                                        dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
+                                        dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
+                                        dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
 
                                         tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
                                     }
@@ -520,9 +525,9 @@ void photon_propagation(const AliasTable_float& aliastable,
                                     dy = vec_new.y;
                                     dz = vec_new.z;
 
-                                    dx = copysignf(fmaxf(fabsf(dx), tiny_eps), dx);
-                                    dy = copysignf(fmaxf(fabsf(dy), tiny_eps), dy);
-                                    dz = copysignf(fmaxf(fabsf(dz), tiny_eps), dz);
+                                    dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
+                                    dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
+                                    dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
 
                                     tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
                                 }

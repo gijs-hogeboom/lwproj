@@ -412,7 +412,7 @@ public:
     inline float operator()(float xq) const {
         // out-of-range -> throw
         if (xq < xs.front() || xq > xs.back()) {
-            throw std::out_of_range("query x is outside interpolation range");
+            throw std::out_of_range("query x (" + std::to_string(xq) + ") is outside interpolation range");
         }
 
         // find first element greater than xq
