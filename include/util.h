@@ -443,6 +443,89 @@ private:
 
 
 
+class CubicSpline {
+public:
+    // Set points and compute spline
+    inline void set_points(const std::vector<float>& x,
+                           const std::vector<float>& y) {
+        if (x.size() != y.size() || x.size() < 2)
+            throw std::runtime_error("Invalid input data");
+
+        x_ = x;
+        y_ = y;
+        int n = x.size();
+
+        // Check sorted x
+        for (int i = 1; i < n; ++i)
+            if (x_[i] <= x_[i-1])
+                throw std::runtime_error("x values must be strictly increasing");
+
+        // Step sizes
+        std::vector<float> h(n-1);
+        for (int i = 0; i < n-1; ++i)
+            h[i] = x_[i+1] - x_[i];
+
+        // Tridiagonal system
+        std::vector<float> alpha(n-1), l(n), mu(n), z(n);
+        M_.assign(n, 0.0);  // natural boundary
+
+        for (int i = 1; i < n-1; ++i) {
+            alpha[i] = (3.0 / h[i]) * (y_[i+1] - y_[i])
+                     - (3.0 / h[i-1]) * (y_[i] - y_[i-1]);
+        }
+
+        l[0] = 1.0;
+        mu[0] = z[0] = 0.0;
+
+        for (int i = 1; i < n-1; ++i) {
+            l[i] = 2.0 * (x_[i+1] - x_[i-1]) - h[i-1] * mu[i-1];
+            mu[i] = h[i] / l[i];
+            z[i] = (alpha[i] - h[i-1] * z[i-1]) / l[i];
+        }
+
+        l[n-1] = 1.0;
+        z[n-1] = M_[n-1] = 0.0;
+
+        // Back substitution
+        for (int j = n-2; j >= 0; --j) {
+            M_[j] = z[j] - mu[j] * M_[j+1];
+        }
+    }
+
+    // Evaluate spline at x
+    inline float operator()(float x) const {
+        if (x_.empty())
+            throw std::runtime_error("Spline not initialized");
+
+        // Clamp to domain
+        if (x <= x_.front()) return y_.front();
+        if (x >= x_.back())  return y_.back();
+
+        // Find interval
+        auto it = std::upper_bound(x_.begin(), x_.end(), x);
+        int i = std::max(int(it - x_.begin()) - 1, 0);
+
+        float h = x_[i+1] - x_[i];
+        float a = (x_[i+1] - x) / h;
+        float b = (x - x_[i]) / h;
+
+        return
+            a * y_[i] + b * y_[i+1]
+            + ((a*a*a - a) * M_[i]
+            +  (b*b*b - b) * M_[i+1]) * (h*h) / 6.0;
+    }
+
+private:
+    std::vector<float> x_, y_, M_;
+};
+
+
+
+
+
+
+
+
 inline std::size_t count_lines(std::fstream& file) {
     std::size_t count = 0;
     std::string line;

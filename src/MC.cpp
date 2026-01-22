@@ -88,7 +88,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     std::vector<float> field_atm_netto_power(n_volumes);
 
     std::vector<float> field_sfc_phi(n_tiles);
-    std::vector<float> field_sfc_eps(n_tiles, 1.0);
+    std::vector<float> field_sfc_emissivity(n_tiles, 1.0);
     std::vector<float> field_sfc_netto_power(n_tiles);
 
     std::vector<float> field_TOA_netto_power(n_tiles);
@@ -105,12 +105,22 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                 int idx_atm = i * ktot * jtot + j * ktot + k;
                 float current_kext = field_atm_kext[idx_atm];
                 float current_Batm = field_atm_B[idx_atm];
-                field_atm_phi[idx_atm] = 4*cfloat::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
+                float phi_atm = 4*cfloat::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
+
+                // Adjusting for single scattering albedo
+                if (enable_scattering) { phi_atm *= (1 - field_atm_SSA[idx_atm]); }
+
+                field_atm_phi[idx_atm] = phi_atm;
 
                 if (i == 0)
                 {
                     int idx_sfc = j * ktot + k;
-                    field_sfc_phi[idx_sfc] = cfloat::PI * field_sfc_eps[idx_sfc] * field_sfc_B[idx_sfc] * dx * dy;
+                    float phi_sfc = cfloat::PI * field_sfc_emissivity[idx_sfc] * field_sfc_B[idx_sfc] * dx * dy;
+
+                    // Adjusting for emission
+                    if (enable_scattering) { phi_sfc *= field_sfc_emissivity[idx_sfc]; }
+
+                    field_sfc_phi[idx_sfc] = phi_sfc;
                 }
             }
         }
@@ -118,7 +128,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
 
     // Loading Pesc-kext curves
-
+    // DOES NOT WORK FOR SCATTERING YET
     if (Pesc_mode)
     {
         if (verbose)
@@ -174,6 +184,8 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
             }
     
             LinearInterpolator_float f_Pesc(arr_kext, arr_Pesc);
+            CubicSpline f_spline;
+            f_spline.set_points(arr_kext, arr_Pesc);
 
             for (int j = 0; j < jtot; j++)
             {
@@ -183,7 +195,8 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
                     float kext = field_atm_kext[idx];
 
-                    float Pesc = f_Pesc(kext);
+                    // float Pesc = f_Pesc(kext);
+                    float Pesc = f_spline(kext);
 
                     float emitted_power = Pesc * field_atm_phi[idx];
 
@@ -366,7 +379,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     // Photons from the atmosphere
     photon_propagation(AliasTable_atm,
                        field_atm_kext,
-                       field_sfc_eps,
+                       field_sfc_emissivity,
                        field_atm_SSA,
                        field_atm_ASY,
                        arr_xh,
@@ -393,7 +406,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     // Photons from the surface
     photon_propagation(AliasTable_sfc,
                        field_atm_kext,
-                       field_sfc_eps,
+                       field_sfc_emissivity,
                        field_atm_SSA,
                        field_atm_ASY,
                        arr_xh,

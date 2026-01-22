@@ -193,7 +193,6 @@ void photon_propagation(const AliasTable_float& aliastable,
             {
                 float sample_weight = aliastable.weights[idx_flat];
                 photon_power = field_phi[idx_flat] / (sample_weight * Nfloat);
-                // LOGvars(idx_photon, photon_power, sample_weight, field_phi[idx_flat], Nfloat)
             }
 
             

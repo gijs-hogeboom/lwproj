@@ -427,8 +427,13 @@ int main(int argc, char* argv[])
         }
         arr_zh[itot] = (float) darr_zh[itot]; // filling in final upper value, not captured in the loop
 
-        dx = 100.;
-        dy = 100.;
+        // Deducing dx and dy
+        std::vector<double> arr_xh(ktot);
+        std::vector<double> arr_yh(jtot);
+        NC_CHECK(nc_get_var_double(ncid_grid, var_zh, arr_xh.data()));
+        NC_CHECK(nc_get_var_double(ncid_grid, var_zh, arr_yh.data()));
+        dx = (float) arr_xh[1] - arr_xh[0];
+        dy = (float) arr_yh[1] - arr_yh[0];
     }
 
     
