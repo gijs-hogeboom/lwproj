@@ -8,25 +8,25 @@
 #include <vector>
 #include <iomanip>
 
-namespace cfloat
+namespace cdouble
 {
-    float inv_2pow24 = 1.0f / 16777216.0f;
-    float PI = 3.14159265f;
+    double inv_2pow24 = 1.0f / 16777216.0f;
+    double PI = 3.14159265f;
 }
 
-std::vector<float> loglinspace(float start, float end, int N)
+std::vector<double> loglinspace(double start, double end, int N)
 {
-    std::vector<float> arr_result(N);
+    std::vector<double> arr_result(N);
 
-    float log_start = log10(start);
-    float log_end = log10(end);
+    double log_start = log10(start);
+    double log_end = log10(end);
 
 
-    float log_step_size = (log_end - log_start)/(N - 1);
+    double log_step_size = (log_end - log_start)/(N - 1);
 
     for (size_t i = 0; i < N; i++)
     {
-        arr_result[i] = pow(10, log_start + (static_cast<float>(i) * log_step_size));
+        arr_result[i] = pow(10, log_start + (static_cast<double>(i) * log_step_size));
     }
 
     return arr_result;
@@ -64,9 +64,9 @@ struct Xoshiro256ss {
     //     return (next() >> 11) * (1.0 / 9007199254740992.0);
     // }
 
-    inline float next_float() {
-        // Take upper 24 bits of next() and convert to float in [0,1)
-        return (next() >> 40) * cfloat::inv_2pow24;
+    inline double next_double() {
+        // Take upper 24 bits of next() and convert to double in [0,1)
+        return (next() >> 40) * cdouble::inv_2pow24;
     }
 
 private:
@@ -80,43 +80,43 @@ struct FastRNG {
     Xoshiro256ss rng;
     FastRNG(uint64_t seed) : rng(seed) {}
 
-    inline float uniform() { return rng.next_float(); }
+    inline double uniform() { return rng.next_double(); }
 
     inline int uniform_int(int max_exclusive) {
         return static_cast<int>(((unsigned __int128)rng.next() * (unsigned __int128)max_exclusive) >> 64);
     }
 };
 
-struct Vec3float
+struct Vec3double
 {
-    float x, y, z;
-    Vec3float(float x_in, float y_in, float z_in) : x(x_in), y(y_in), z(z_in) {}
+    double x, y, z;
+    Vec3double(double x_in, double y_in, double z_in) : x(x_in), y(y_in), z(z_in) {}
 };
 
 
-Vec3float generate_angle_HG_float(float dx, float dy, float dz, float g, FastRNG& rng)
+Vec3double generate_angle_HG_double(double dx, double dy, double dz, double g, FastRNG& rng)
 {
-    float mu;
+    double mu;
     if (fabsf(g) < 1e-6f) {
         mu = rng.uniform()*2.f - 1.f;
     } else {
-        float xi = rng.uniform();
-        float gg = g * g;
-        float temp = (1.f - gg) / (1.f - g + 2.f * g * xi);
+        double xi = rng.uniform();
+        double gg = g * g;
+        double temp = (1.f - gg) / (1.f - g + 2.f * g * xi);
         mu = (1.f + gg - temp * temp) / (2.f * g);
     }
 
-    float phi = rng.uniform()*2*cfloat::PI;
+    double phi = rng.uniform()*2*cdouble::PI;
 
-    float sin_phi = sinf(phi);
-    float cos_phi = cosf(phi);
-    float sin_theta = sqrtf(1.f - mu*mu);
+    double sin_phi = sinf(phi);
+    double cos_phi = cosf(phi);
+    double sin_theta = sqrtf(1.f - mu*mu);
 
     // Creating tangent and bi-tangent lines (t and b)
-    float tdx, tdy, tdz, bdx, bdy, bdz, vdx, vdy, vdz;
-    float dx2dy2 = dx*dx + dy*dy;
-    float inv_tnorm = 1.f/sqrtf(dx2dy2);
-    float inv_bnorm = 1.f/sqrtf(dx2dy2 + dz*dz);
+    double tdx, tdy, tdz, bdx, bdy, bdz, vdx, vdy, vdz;
+    double dx2dy2 = dx*dx + dy*dy;
+    double inv_tnorm = 1.f/sqrtf(dx2dy2);
+    double inv_bnorm = 1.f/sqrtf(dx2dy2 + dz*dz);
 
     // t = up "x" u, normalized to length = 1
     // b = u "x" t, normalized to length = 1
@@ -133,29 +133,29 @@ Vec3float generate_angle_HG_float(float dx, float dy, float dz, float g, FastRNG
     vdy =   sin_theta * cos_phi * tdy +   sin_theta * sin_phi * bdy + mu * dy;
     vdz = /*sin_theta * cos_phi * tdz +*/ sin_theta * sin_phi * bdz + mu * dz; // tdz = 0.
 
-    Vec3float vec_out(vdx, vdy, vdz);
+    Vec3double vec_out(vdx, vdy, vdz);
 
     return vec_out;
 }
 
 
-float f_Pesc_MC3D(const float cell_dx,
-                  const float cell_dy,
-                  const float cell_dz,
-                  const float cell_kext,
+double f_Pesc_MC3D(const double cell_dx,
+                  const double cell_dy,
+                  const double cell_dz,
+                  const double cell_kext,
                   const int N)
 {
     const int Nbatch = 1024;
-    const float x0 = 0.f;
-    const float y0 = 0.f;
-    const float z0 = 0.f;
-    const float x1 = x0 + cell_dx;
-    const float y1 = y0 + cell_dy;
-    const float z1 = z0 + cell_dz;
+    const double x0 = 0.f;
+    const double y0 = 0.f;
+    const double z0 = 0.f;
+    const double x1 = x0 + cell_dx;
+    const double y1 = y0 + cell_dy;
+    const double z1 = z0 + cell_dz;
 
     int Nout = 0;
 
-    const float tiny_eps = 1e-12;
+    const double tiny_eps = 1e-12;
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
@@ -166,29 +166,29 @@ float f_Pesc_MC3D(const float cell_dx,
         for (long int idx_photon = 0; idx_photon < N; idx_photon++)
         {
             // Generating the photon
-            float x = rng_local.uniform()*cell_dx;
-            float y = rng_local.uniform()*cell_dy;
-            float z = rng_local.uniform()*cell_dz;
+            double x = rng_local.uniform()*cell_dx;
+            double y = rng_local.uniform()*cell_dy;
+            double z = rng_local.uniform()*cell_dz;
 
-            float mu = rng_local.uniform()*2.f - 1.f;
-            float az = rng_local.uniform()*2.f * 2*cfloat::PI;
+            double mu = rng_local.uniform()*2.f - 1.f;
+            double az = rng_local.uniform()*2.f * 2*cdouble::PI;
 
-            float s = sqrtf(1.f - mu*mu);
-            float dx = s*cosf(az);
-            float dy = s*sinf(az);
-            float dz = mu;
+            double s = sqrtf(1.f - mu*mu);
+            double dx = s*cosf(az);
+            double dy = s*sinf(az);
+            double dz = mu;
             
             dx = copysignf(fmaxf(fabsf(dx), tiny_eps), dx);
             dy = copysignf(fmaxf(fabsf(dy), tiny_eps), dy);
             dz = copysignf(fmaxf(fabsf(dz), tiny_eps), dz);
 
-            float tau = -logf(1.f - rng_local.uniform());
+            double tau = -logf(1.f - rng_local.uniform());
 
             // Propagating
-            float f = tau / cell_kext;
-            float x_new = x + dx*f;
-            float y_new = y + dy*f;
-            float z_new = z + dz*f;
+            double f = tau / cell_kext;
+            double x_new = x + dx*f;
+            double y_new = y + dy*f;
+            double z_new = z + dz*f;
 
             // Tallying if photon escaped
             if ((x_new < x0) || (x_new > x1) ||
@@ -203,24 +203,24 @@ float f_Pesc_MC3D(const float cell_dx,
         Nout += Nout_local;
     }
 
-    float Pesc = ((float) Nout) / N;
+    double Pesc = ((double) Nout) / N;
     return Pesc;
 }
 
 
 
-void write_Pesc_curve(float dx, float dy, float dz, int Nphot)
+void write_Pesc_curve(double dx, double dy, double dz, int Nphot)
 {
-    float kext_low = 1e-10;
-    float kext_high = 1e4;
+    double kext_low = 1e-10;
+    double kext_high = 1e4;
     int N_curvepoints = 400;
 
-    std::vector<float> arr_kext = loglinspace(kext_low, kext_high, N_curvepoints);
+    std::vector<double> arr_kext = loglinspace(kext_low, kext_high, N_curvepoints);
 
     std::ostringstream filename;
     filename << "../data_input/Esc_curves_new/Esc_kext_curve_"
-             << std::fixed << std::setprecision(2) << dx << "_"
-             << std::fixed << std::setprecision(2) << dy << "_"
+             << std::fixed << std::setprecision(0) << dx << "_"
+             << std::fixed << std::setprecision(0) << dy << "_"
              << std::fixed << std::setprecision(2) << dz << ".csv";
     std::ofstream file(filename.str());
     if (!file.is_open())
@@ -230,10 +230,12 @@ void write_Pesc_curve(float dx, float dy, float dz, int Nphot)
     // Writing Header
     file << "kext,Esc\n";
 
+    file << std::scientific << std::setprecision(15);
+
     for (int i = 0; i < N_curvepoints; i++)
     {
-        float cell_kext = arr_kext[i];
-        float Pesc = f_Pesc_MC3D(dx, dy, dz, cell_kext, Nphot);
+        double cell_kext = arr_kext[i];
+        double Pesc = f_Pesc_MC3D(dx, dy, dz, cell_kext, Nphot);
         file << cell_kext << ',' << Pesc << "\n";
         std::cout << i << std::endl;
     }
@@ -249,15 +251,15 @@ int main(int argc, char* argv[])
 
 
 
-    int nphot_pow = 25;
+    int nphot_pow = 26;
 
 
     int Nphot = pow(2, nphot_pow);
 
-    float dx = 1.f;
-    float dy = 1.f;
-    float dz = 1.f;
-    float kext = 1.f;
+    double dx = 100.f;
+    double dy = 100.f;
+    double dz = 100.f;
+    double kext = 1.f;
 
     std::cout << "Starting..." << std::endl;
     write_Pesc_curve(dx, dy, dz, Nphot);

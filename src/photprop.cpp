@@ -87,6 +87,7 @@ void photon_propagation(const AliasTable_float& aliastable,
 
     std::atomic<std::int64_t> photons_done{0};
 
+    
 
     // Parallelization
     #pragma omp parallel
@@ -107,8 +108,13 @@ void photon_propagation(const AliasTable_float& aliastable,
             photon_power = std::accumulate(field_phi.begin(), field_phi.end(), 0.0f) / N;
         }
 
+        #pragma omp single
+        std::cout << photon_power << std::endl;
+
         // Keeping track of current photon batch
         int photon_counter = 0;
+
+
 
         #pragma omp for schedule(dynamic, Nphot_batch)
         for (long int idx_photon = 0; idx_photon < N; idx_photon++)
@@ -389,8 +395,6 @@ void photon_propagation(const AliasTable_float& aliastable,
 
 
                     // Determinig the scaling factor based on which cell is hit (i.e., which direction takes the least amount of time)
-                    // Additionally, updating photon index position for next iteration (if photon extincts within the cell, the idx will not be used anyways)
-
                     bool hit_x_wall = ((time_x <= time_y) && (time_x <= time_z));
                     bool hit_y_wall = ((time_y <= time_x) && (time_y <= time_z));
                     bool hit_z_wall = ((time_z <= time_x) && (time_z <= time_y));
@@ -413,7 +417,6 @@ void photon_propagation(const AliasTable_float& aliastable,
                         dist_y = time_z * dy;
                         dist_z = dnz;
                     }
-
 
 
                     // Calculating distance traveled
@@ -597,5 +600,7 @@ void photon_propagation(const AliasTable_float& aliastable,
     }
 
     std::cout << "#|\n";
+
 }
+
 

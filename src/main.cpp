@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 
 
     // Handling input
-    std::string arg1 = "full";
+    std::string arg1 = "s3D1";
     std::string arg2 = "power";
     float arg3 = 20.;
     bool arg4 = false;
@@ -91,8 +91,8 @@ int main(int argc, char* argv[])
     }
 
     std::string hr_filename_MC = "../data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
-                                    "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv";
-    std::string hr_filename_PP = "../data_output/heating_rates/HR_PP_" + CASE + ".csv";
+                                    "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
+    std::string hr_filename_PP = "../data_output/heating_rates/HR_PP_" + CASE + ".dat";
 
     // Initializing variables to load
     std::vector<float> arr_z;
@@ -539,14 +539,12 @@ int main(int argc, char* argv[])
     std::vector<float> heating_rates_MC_in(itot, 0.);
     std::vector<float> arr_z_in(itot, 0.);
 
-    std::fstream file_MCinput("../data_output/heating_rates/HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + 
-                              "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv");
-    std::fstream file_PPinput("../data_output/heating_rates/HR_PP_" + CASE + ".csv");
+    std::fstream file_MCinput(hr_filename_MC);
+    std::fstream file_PPinput(hr_filename_PP);
     
     if (!file_MCinput.is_open())
     {
-        std::cout << "File |HR_MC_" + CASE + "_" + INTERCELL_TECHNIQUE + "_Nphot" + std::to_string(Nphot_pow) + "_Pesc" + 
-                      std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".csv| does not exist!" << std::endl;
+        std::cout << "File |" + hr_filename_MC + "| does not exist!" << std::endl;
     }
     else
     {
@@ -571,7 +569,7 @@ int main(int argc, char* argv[])
 
     if (!file_PPinput.is_open())
     {
-        std::cout << "File |HR_PP_" + CASE + ".csv| does not exist!" << std::endl;
+        std::cout << "File |" + hr_filename_PP + "| does not exist!" << std::endl;
     }
     else
     {

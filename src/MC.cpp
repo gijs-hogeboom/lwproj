@@ -167,7 +167,6 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
             {
                 std::stringstream ss(line);
                 std::string cell;
-                std::getline(ss, cell, ','); // index col
                 std::getline(ss, cell, ','); // kext value
                 float kext = std::stod(cell);
                 if ((kext >= 1e-15) && (kext <= 1e5))
@@ -182,10 +181,13 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                 }
                 idx++;
             }
+            
+
+            // LOGvec(arr_kext);
     
             LinearInterpolator_float f_Pesc(arr_kext, arr_Pesc);
-            CubicSpline f_spline;
-            f_spline.set_points(arr_kext, arr_Pesc);
+            // CubicSpline f_spline;
+            // f_spline.set_points(arr_kext, arr_Pesc);
 
             for (int j = 0; j < jtot; j++)
             {
@@ -195,12 +197,12 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
                     float kext = field_atm_kext[idx];
 
-                    // float Pesc = f_Pesc(kext);
-                    float Pesc = f_spline(kext);
+                    double Pesc = f_Pesc(kext);
+                    // float Pesc = f_spline(kext);
 
-                    float emitted_power = Pesc * field_atm_phi[idx];
+                    double emitted_power = Pesc * field_atm_phi[idx];
 
-                    field_atm_phi[idx] = emitted_power;
+                    field_atm_phi[idx] = (float) emitted_power;
                 }
             }
         }

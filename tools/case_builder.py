@@ -238,6 +238,78 @@ if run_s3D2:
 
     ls_s3Dcases.append(dct_case)
 
+run_s3D3 = True
+if run_s3D3:
+
+
+    # two clouds scenario in boundary layer atmopshere
+    itot = 99
+    jtot = 99
+    ktot = 99
+
+    dx = 100
+    dy = 100
+    dz = 100
+
+
+    kext_cloud = 10.
+    B_cloud = 2.
+    SSA_cloud = 0.8
+    ASY_cloud = 0.75
+
+    kext_open = 1e-3
+    B_open = 1e-7
+    SSA_open = 0.
+    ASY_open = 0.
+
+
+
+    arr_zh = np.arange(0, itot*dz + dz, dz)
+    arr_z  = np.arange(dz/2, itot*dz + dz/2, dz)
+    arr_dz = np.array( [arr_zh[i+1] - arr_zh[i] for i in range(len(arr_z))] )
+
+
+    arr_kext_open  = np.ones(itot)*kext_open
+    arr_kext_cloud = np.ones(itot)*kext_open
+    arr_Batm_open  = np.ones(itot)*B_open
+    arr_Batm_cloud = np.ones(itot)*B_open
+    arr_SSA_open   = np.ones(itot)*SSA_open
+    arr_SSA_cloud  = np.ones(itot)*SSA_open
+    arr_ASY_open   = np.ones(itot)*ASY_open
+    arr_ASY_cloud  = np.ones(itot)*ASY_open
+
+    arr_kext_cloud[itot//2] = kext_cloud
+    arr_Batm_cloud[itot//2] = B_cloud
+    arr_SSA_cloud[itot//2]  = SSA_cloud
+    arr_ASY_cloud[itot//2]  = ASY_cloud
+
+    Bsfc = arr_Batm_open[0]
+
+    cloud_coords_x = [ktot//2]
+    cloud_coords_y = [jtot//2]
+
+    dct_case = {
+        'case_limits':[itot, jtot, ktot],
+        'cell_size_horizontal':[dx, dy],
+        'z':arr_z,
+        'zh':arr_zh,
+        'dz':arr_dz,
+        'kext_open':arr_kext_open,
+        'kext_cloud':arr_kext_cloud,
+        'Batm_open':arr_Batm_open,
+        'Batm_cloud':arr_Batm_cloud,
+        'SSA_open':arr_SSA_open,
+        'SSA_cloud':arr_SSA_cloud,
+        'ASY_open':arr_ASY_open,
+        'ASY_cloud':arr_ASY_cloud,
+        'Bsfc':Bsfc,
+        'cloud_coords_x':cloud_coords_x,
+        'cloud_coords_y':cloud_coords_y
+    }
+
+    ls_s3Dcases.append(dct_case)
+
+
 
 dct_out = {}
 for s3Di, dct_case in enumerate(ls_s3Dcases, 1):
@@ -251,7 +323,7 @@ for s3Di, dct_case in enumerate(ls_s3Dcases, 1):
 
 
 # Dumping case dictionary at lwproj's data_input location
-path = '/home/gijs-hogeboom/dev/mclw/data_input'
+path = '/home/gijs/mclw/data_input'
 with open(os.path.join(path,"s3Dcases.json"), 'w') as f:
     json.dump(dct_out, f)
 

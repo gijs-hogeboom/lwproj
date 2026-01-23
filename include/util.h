@@ -91,19 +91,19 @@ void LOGvars(const FirstVal first, const RestVals... rest)
 }
 
 
-// inline double kahan_sum(const std::vector<double>& values) 
-// {
-//     // from Mr. Chat
-//     double sum = 0.0;
-//     double c = 0.0;  // Compensation
-//     for (double x : values) {
-//         double y = x - c;
-//         double t = sum + y;
-//         c = (t - sum) - y;
-//         sum = t;
-//     }
-//     return sum;
-// }
+inline double kahan_sum(const std::vector<double>& values) 
+{
+    // from Mr. Chat
+    double sum = 0.0;
+    double c = 0.0;  // Compensation
+    for (double x : values) {
+        double y = x - c;
+        double t = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+    }
+    return sum;
+}
 
 inline float kahan_sum(const std::vector<float>& values) 
 {
@@ -126,10 +126,10 @@ inline float estimate_max_numerical_float_error(float s)
 }
 
 
-// inline double estimate_max_numerical_double_error(double s)
-// {
-//     return cdouble::u * s;
-// }
+inline double estimate_max_numerical_double_error(double s)
+{
+    return cdouble::u * s;
+}
 
 
 inline std::vector<float> linspace(float start, float end, int N)
@@ -197,10 +197,10 @@ struct Xoshiro256ss {
         return result;
     }
 
-    // inline double next_double() {
-    //     // Take upper 53 bits of next() and convert to double in [0,1)
-    //     return (next() >> 11) * (1.0 / 9007199254740992.0);
-    // }
+    inline double next_double() {
+        // Take upper 53 bits of next() and convert to double in [0,1)
+        return (next() >> 11) * (1.0 / 9007199254740992.0);
+    }
 
     inline float next_float() {
         // Take upper 24 bits of next() and convert to float in [0,1)
@@ -226,49 +226,49 @@ struct FastRNG {
 };
 
 
-// struct AliasTable_double {
-//     std::vector<double> prob;
-//     std::vector<int> alias;
-//     std::vector<double> weights;
-//     int n;
+struct AliasTable_double {
+    std::vector<double> prob;
+    std::vector<int> alias;
+    std::vector<double> weights;
+    int n;
 
-//     AliasTable_double(const std::vector<double>& weights_in) {
-//         n = weights_in.size();
-//         prob.resize(n);
-//         alias.resize(n);
+    AliasTable_double(const std::vector<double>& weights_in) {
+        n = weights_in.size();
+        prob.resize(n);
+        alias.resize(n);
 
-//         std::vector<double> scaled(weights_in);
-//         double sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
-//         for (auto& w : scaled) w *= n / sum;
+        std::vector<double> scaled(weights_in);
+        double sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
+        for (auto& w : scaled) w *= n / sum;
 
-//         weights.resize(n);
-//         for (int i = 0; i < n; i++) weights[i] = weights_in[i] / sum;
+        weights.resize(n);
+        for (int i = 0; i < n; i++) weights[i] = weights_in[i] / sum;
         
 
 
-//         std::queue<int> small, large;
-//         for (int i = 0; i < n; ++i)
-//             (scaled[i] < 1.0 ? small : large).push(i);
+        std::queue<int> small, large;
+        for (int i = 0; i < n; ++i)
+            (scaled[i] < 1.0 ? small : large).push(i);
 
-//         while (!small.empty() && !large.empty()) {
-//             int s = small.front(); small.pop();
-//             int l = large.front(); large.pop();
-//             prob[s] = scaled[s];
-//             alias[s] = l;
-//             scaled[l] = scaled[l] + scaled[s] - 1.0;
-//             (scaled[l] < 1.0 ? small : large).push(l);
-//         }
+        while (!small.empty() && !large.empty()) {
+            int s = small.front(); small.pop();
+            int l = large.front(); large.pop();
+            prob[s] = scaled[s];
+            alias[s] = l;
+            scaled[l] = scaled[l] + scaled[s] - 1.0;
+            (scaled[l] < 1.0 ? small : large).push(l);
+        }
 
-//         while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
-//         while (!small.empty()) { prob[small.front()] = 1.0; small.pop(); }
-//     }
+        while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
+        while (!small.empty()) { prob[small.front()] = 1.0; small.pop(); }
+    }
 
-//     inline int sample(FastRNG& rng) const {
-//         int i = rng.rng.next() % n;
-//         double r = rng.rng.next_double();
-//         return (r < prob[i]) ? i : alias[i];
-//     }
-// };
+    inline int sample(FastRNG& rng) const {
+        int i = rng.rng.next() % n;
+        double r = rng.rng.next_double();
+        return (r < prob[i]) ? i : alias[i];
+    }
+};
 
 
 struct AliasTable_float {
@@ -337,56 +337,56 @@ inline std::string f_Pesccurve_name(int dx, int dy, float dz)
 
 
 
-// class LinearInterpolator_double {
-// public:
-//     LinearInterpolator_double(const std::vector<double>& x,
-//                               const std::vector<double>& y)
-//         : xs(x), ys(y)
-//     {
-//         if (xs.size() != ys.size() || xs.size() < 2) {
-//             throw std::invalid_argument("x and y arrays must have same size >= 2");
-//         }
+class LinearInterpolator_double {
+public:
+    LinearInterpolator_double(const std::vector<double>& x,
+                              const std::vector<double>& y)
+        : xs(x), ys(y)
+    {
+        if (xs.size() != ys.size() || xs.size() < 2) {
+            throw std::invalid_argument("x and y arrays must have same size >= 2");
+        }
 
-//         // ensure strictly increasing x
-//         for (size_t i = 1; i < xs.size(); ++i) {
-//             if (xs[i] <= xs[i - 1]) {
-//                 throw std::invalid_argument("x values must be strictly increasing");
-//             }
-//         }
-//     }
+        // ensure strictly increasing x
+        for (size_t i = 1; i < xs.size(); ++i) {
+            if (xs[i] <= xs[i - 1]) {
+                throw std::invalid_argument("x values must be strictly increasing");
+            }
+        }
+    }
 
-//     // interpolate y at value xq
-//     inline double operator()(double xq) const {
-//         // out-of-range -> throw
-//         if (xq < xs.front() || xq > xs.back()) {
-//             throw std::out_of_range("query x is outside interpolation range");
-//         }
+    // interpolate y at value xq
+    inline double operator()(double xq) const {
+        // out-of-range -> throw
+        if (xq < xs.front() || xq > xs.back()) {
+            throw std::out_of_range("query x is outside interpolation range");
+        }
 
-//         // find first element greater than xq
-//         auto it = std::lower_bound(xs.begin(), xs.end(), xq);
+        // find first element greater than xq
+        auto it = std::lower_bound(xs.begin(), xs.end(), xq);
         
-//         if (it == xs.begin())
-//             return ys.front();
+        if (it == xs.begin())
+            return ys.front();
         
-//         if (it == xs.end())
-//             return ys.back();
+        if (it == xs.end())
+            return ys.back();
 
-//         // indices of bounding interval
-//         size_t i1 = it - xs.begin();
-//         size_t i0 = i1 - 1;
+        // indices of bounding interval
+        size_t i1 = it - xs.begin();
+        size_t i0 = i1 - 1;
 
-//         double x0 = xs[i0], x1 = xs[i1];
-//         double y0 = ys[i0], y1 = ys[i1];
+        double x0 = xs[i0], x1 = xs[i1];
+        double y0 = ys[i0], y1 = ys[i1];
 
-//         // linear interpolation
-//         double t = (xq - x0) / (x1 - x0);
-//         return y0 + t * (y1 - y0);
-//     }
+        // linear interpolation
+        double t = (xq - x0) / (x1 - x0);
+        return y0 + t * (y1 - y0);
+    }
 
-// private:
-//     std::vector<double> xs;
-//     std::vector<double> ys;
-// };
+private:
+    std::vector<double> xs;
+    std::vector<double> ys;
+};
 
 
 
@@ -440,85 +440,6 @@ private:
     std::vector<float> xs;
     std::vector<float> ys;
 };
-
-
-
-class CubicSpline {
-public:
-    // Set points and compute spline
-    inline void set_points(const std::vector<float>& x,
-                           const std::vector<float>& y) {
-        if (x.size() != y.size() || x.size() < 2)
-            throw std::runtime_error("Invalid input data");
-
-        x_ = x;
-        y_ = y;
-        int n = x.size();
-
-        // Check sorted x
-        for (int i = 1; i < n; ++i)
-            if (x_[i] <= x_[i-1])
-                throw std::runtime_error("x values must be strictly increasing");
-
-        // Step sizes
-        std::vector<float> h(n-1);
-        for (int i = 0; i < n-1; ++i)
-            h[i] = x_[i+1] - x_[i];
-
-        // Tridiagonal system
-        std::vector<float> alpha(n-1), l(n), mu(n), z(n);
-        M_.assign(n, 0.0);  // natural boundary
-
-        for (int i = 1; i < n-1; ++i) {
-            alpha[i] = (3.0 / h[i]) * (y_[i+1] - y_[i])
-                     - (3.0 / h[i-1]) * (y_[i] - y_[i-1]);
-        }
-
-        l[0] = 1.0;
-        mu[0] = z[0] = 0.0;
-
-        for (int i = 1; i < n-1; ++i) {
-            l[i] = 2.0 * (x_[i+1] - x_[i-1]) - h[i-1] * mu[i-1];
-            mu[i] = h[i] / l[i];
-            z[i] = (alpha[i] - h[i-1] * z[i-1]) / l[i];
-        }
-
-        l[n-1] = 1.0;
-        z[n-1] = M_[n-1] = 0.0;
-
-        // Back substitution
-        for (int j = n-2; j >= 0; --j) {
-            M_[j] = z[j] - mu[j] * M_[j+1];
-        }
-    }
-
-    // Evaluate spline at x
-    inline float operator()(float x) const {
-        if (x_.empty())
-            throw std::runtime_error("Spline not initialized");
-
-        // Clamp to domain
-        if (x <= x_.front()) return y_.front();
-        if (x >= x_.back())  return y_.back();
-
-        // Find interval
-        auto it = std::upper_bound(x_.begin(), x_.end(), x);
-        int i = std::max(int(it - x_.begin()) - 1, 0);
-
-        float h = x_[i+1] - x_[i];
-        float a = (x_[i+1] - x) / h;
-        float b = (x - x_[i]) / h;
-
-        return
-            a * y_[i] + b * y_[i+1]
-            + ((a*a*a - a) * M_[i]
-            +  (b*b*b - b) * M_[i+1]) * (h*h) / 6.0;
-    }
-
-private:
-    std::vector<float> x_, y_, M_;
-};
-
 
 
 
