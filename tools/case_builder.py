@@ -311,6 +311,74 @@ if run_s3D3:
 
 
 
+run_s3D4 = True
+if run_s3D4:
+
+
+    # two clouds scenario in boundary layer atmopshere
+    itot = 33
+    jtot = 33
+    ktot = 33
+
+    dx = 100
+    dy = 100
+    dz = 100
+
+
+    kext_cloud = 10.
+    B_cloud = 2.
+    SSA_cloud = 0.8
+    ASY_cloud = 0.75
+
+    kext_open = 1e-3
+    B_open = 1e-7
+    SSA_open = 0.
+    ASY_open = 0.
+
+
+
+    arr_zh = np.arange(0, itot*dz + dz, dz)
+    arr_z  = np.arange(dz/2, itot*dz + dz/2, dz)
+    arr_dz = np.array( [arr_zh[i+1] - arr_zh[i] for i in range(len(arr_z))] )
+
+
+    arr_kext_open  = np.ones(itot)*kext_open
+    arr_kext_cloud = np.ones(itot)*kext_cloud
+    arr_Batm_open  = np.ones(itot)*B_open
+    arr_Batm_cloud = np.ones(itot)*B_cloud
+    arr_SSA_open   = np.ones(itot)*SSA_open
+    arr_SSA_cloud  = np.ones(itot)*SSA_cloud
+    arr_ASY_open   = np.ones(itot)*ASY_open
+    arr_ASY_cloud  = np.ones(itot)*ASY_cloud
+
+    Bsfc = arr_Batm_open[0]*100
+
+    cloud_coords_x = [x for x in range(ktot) for y in range(jtot)]
+    cloud_coords_y = [y for x in range(ktot) for y in range(jtot)]
+
+    dct_case = {
+        'case_limits':[itot, jtot, ktot],
+        'cell_size_horizontal':[dx, dy],
+        'z':arr_z,
+        'zh':arr_zh,
+        'dz':arr_dz,
+        'kext_open':arr_kext_open,
+        'kext_cloud':arr_kext_cloud,
+        'Batm_open':arr_Batm_open,
+        'Batm_cloud':arr_Batm_cloud,
+        'SSA_open':arr_SSA_open,
+        'SSA_cloud':arr_SSA_cloud,
+        'ASY_open':arr_ASY_open,
+        'ASY_cloud':arr_ASY_cloud,
+        'Bsfc':Bsfc,
+        'cloud_coords_x':cloud_coords_x,
+        'cloud_coords_y':cloud_coords_y
+    }
+
+    ls_s3Dcases.append(dct_case)
+
+
+
 dct_out = {}
 for s3Di, dct_case in enumerate(ls_s3Dcases, 1):
     dct_out[s3Di] = {}

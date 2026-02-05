@@ -13,25 +13,26 @@
 #include <atomic>
 
 #include "util.h"
+#include "precision.h"
 
     
 
-void photon_propagation(const AliasTable_float& aliastable,
-                        const std::vector<float>& field_kext,
-                        const std::vector<float>& field_sfc_eps,
-                        const std::vector<float>& field_SSA,
-                        const std::vector<float>& field_ASY,
-                        const std::vector<float>& arr_xh,
-                        const std::vector<float>& arr_yh,
-                        const std::vector<float>& arr_zh,
-                        const std::vector<float>& arr_x,
-                        const std::vector<float>& arr_y,
-                        const std::vector<float>& arr_z,
-                        const std::vector<float>& arr_dz,
-                        const std::vector<float>& field_phi,
-                        std::vector<float>& field_atm_net_phi,
-                        std::vector<float>& field_sfc_net_phi,
-                        std::vector<float>& field_TOA_net_phi,
+void photon_propagation(const AliasTable& aliastable,
+                        const std::vector<Real>& field_kext,
+                        const std::vector<Real>& field_sfc_eps,
+                        const std::vector<Real>& field_SSA,
+                        const std::vector<Real>& field_ASY,
+                        const std::vector<Real>& arr_xh,
+                        const std::vector<Real>& arr_yh,
+                        const std::vector<Real>& arr_zh,
+                        const std::vector<Real>& arr_x,
+                        const std::vector<Real>& arr_y,
+                        const std::vector<Real>& arr_z,
+                        const std::vector<Real>& arr_dz,
+                        const std::vector<Real>& field_phi,
+                        std::vector<Real>& field_atm_net_phi,
+                        std::vector<Real>& field_sfc_net_phi,
+                        std::vector<Real>& field_TOA_net_phi,
                         const long int N,
                         const int domain_section,
                         const std::string& INTERCELL_TECHNIQUE,
@@ -46,26 +47,26 @@ void photon_propagation(const AliasTable_float& aliastable,
     const int n_volumes   = itot*jtot*ktot;
     const int n_tiles     = jtot*ktot;
 
-    const float x_max     = arr_xh[ktot];
-    const float y_max     = arr_yh[jtot];
-    const float z_max     = arr_zh[itot];
-    const float cell_dx   = arr_xh[1] - arr_xh[0];
-    const float cell_dy   = arr_yh[1] - arr_yh[0];
+    const Real x_max      = arr_xh[ktot];
+    const Real y_max      = arr_yh[jtot];
+    const Real z_max      = arr_zh[itot];
+    const Real cell_dx    = arr_xh[1] - arr_xh[0];
+    const Real cell_dy    = arr_yh[1] - arr_yh[0];
     
-    const float eps       = 1e-3f;
-    const float tiny_eps  = 1e-12f;
+    const Real eps        = 1e-3;
+    const Real tiny_eps   = 1e-12;
 
     const int iter_max    = 1e6;
-    const float dx_min    = tiny_eps;
-    const float dy_min    = tiny_eps;
-    const float dz_min    = sinf(atanf(z_max / (float) (iter_max * cell_dx)));
+    const Real dx_min     = tiny_eps;
+    const Real dy_min     = tiny_eps;
+    const Real dz_min     = std::sin(std::atan(z_max / static_cast<Real>(iter_max * cell_dx)));
 
-    const float w_crit    = 0.5f;
-    const float Nfloat    = (float) N;
+    const Real w_crit     = 0.5;
+    const Real Nreal      = static_cast<Real>(N);
     const int jktot       = n_tiles;
 
-    const float rng_smallest_val = 5.96046e-08f;
-    const float tau_maxval       = 20.f;
+    const Real rng_smallest_val = 5.96046e-08;
+    const Real tau_maxval       = 20.;
 
     const int Nphot_batch  = 1024;
 
@@ -96,20 +97,17 @@ void photon_propagation(const AliasTable_float& aliastable,
         int tid = omp_get_thread_num();
         FastRNG rng_local(std::chrono::high_resolution_clock::now().time_since_epoch().count() + tid);
 
-        std::vector<float> field_atm_net_phi_local(n_volumes);
-        std::vector<float> field_sfc_net_phi_local(n_tiles);
-        std::vector<float> field_TOA_net_phi_local(n_tiles);
+        std::vector<Real> field_atm_net_phi_local(n_volumes);
+        std::vector<Real> field_sfc_net_phi_local(n_tiles);
+        std::vector<Real> field_TOA_net_phi_local(n_tiles);
 
         // Initializing photon power
-        float photon_power;
+        Real photon_power;
 
         if (INTERCELL_TECHNIQUE == "power")
         {
-            photon_power = std::accumulate(field_phi.begin(), field_phi.end(), 0.0f) / N;
+            photon_power = std::accumulate(field_phi.begin(), field_phi.end(), 0.0) / N;
         }
-
-        #pragma omp single
-        std::cout << photon_power << std::endl;
 
         // Keeping track of current photon batch
         int photon_counter = 0;
@@ -131,10 +129,10 @@ void photon_propagation(const AliasTable_float& aliastable,
 
             // Initializing position/direction/optical thickness
             int idx_z, idx_y, idx_x;
-            float x, y, z, mu, az, tau;
+            Real x, y, z, mu, az, tau;
 
             // Initializing scattering-related properties
-            float absorbed_photon_power, current_ssa, current_asy;
+            Real absorbed_photon_power, current_ssa, current_asy;
 
             // Keeping track of cycles per photon
             std::uint64_t iter_counter = 0;
@@ -155,10 +153,10 @@ void photon_propagation(const AliasTable_float& aliastable,
                 y = (idx_y + rng_local.uniform()) * cell_dy;
                 z = arr_zh[idx_z] + rng_local.uniform()*arr_dz[idx_z];
 
-                mu = rng_local.uniform()*2.f - 1.f;
-                az = rng_local.uniform()*2.f*cfloat::PI;
+                mu = rng_local.uniform()*static_cast<Real>(2.) - static_cast<Real>(1.);
+                az = rng_local.uniform()*static_cast<Real>(2.)*constants::PI;
 
-                tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
+                tau = std::min(-std::log(rng_local.uniform()), tau_maxval);
             }
             else if (domain_section == 1)
             {
@@ -169,36 +167,36 @@ void photon_propagation(const AliasTable_float& aliastable,
 
                 x = (idx_x + rng_local.uniform()) * cell_dx;
                 y = (idx_y + rng_local.uniform()) * cell_dy;
-                z = 0.f;
+                z = 0.;
 
-                mu = sqrtf(rng_local.uniform());
-                az = rng_local.uniform()*2.f*cfloat::PI;
+                mu = std::sqrt(rng_local.uniform());
+                az = rng_local.uniform()*static_cast<Real>(2.)*constants::PI;
 
-                tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
+                tau = std::min(-std::log(rng_local.uniform()), tau_maxval);
             }
 
             // Calculating cartesian direction vector
-            float s = sqrtf(1.f - mu*mu);
-            float dx = s*cosf(az);
-            float dy = s*sinf(az);
-            float dz = mu;
+            Real s = std::sqrt(static_cast<Real>(1.) - mu*mu);
+            Real dx = s*std::cos(az);
+            Real dy = s*std::sin(az);
+            Real dz = mu;
 
-            dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
-            dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
-            dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
+            dx = std::copysign(std::max(std::abs(dx), dx_min), dx);
+            dy = std::copysign(std::max(std::abs(dy), dy_min), dy);
+            dz = std::copysign(std::max(std::abs(dz), dz_min), dz);
 
-            float w = 1.f;
+            Real w = 1.;
 
             // Initializing working variables
-            float ds, max_s, tau_absorbed, fs, current_kext;
-            float dist_x, dist_y, dist_z;
+            Real ds, max_s, tau_absorbed, fs, current_kext;
+            Real dist_x, dist_y, dist_z;
             
 
             // Calculating photon power for uniform and power-gradient method
             if (!(INTERCELL_TECHNIQUE == "power"))
             {
-                float sample_weight = aliastable.weights[idx_flat];
-                photon_power = field_phi[idx_flat] / (sample_weight * Nfloat);
+                Real sample_weight = aliastable.weights[idx_flat];
+                photon_power = field_phi[idx_flat] / (sample_weight * Nreal);
             }
 
             
@@ -207,9 +205,9 @@ void photon_propagation(const AliasTable_float& aliastable,
 
 
             ////////////////////////////////// START OF PROPAGATION //////////////////////////////////
-            while (w > 0.f)
+            while (w > static_cast<Real>(0.))
             {
-                while (tau > 0.f)
+                while (tau > static_cast<Real>(0.))
                 {
                     iter_counter++;
                     if (iter_counter >= 1000000000)
@@ -220,19 +218,19 @@ void photon_propagation(const AliasTable_float& aliastable,
                         // LOGvars(dx, dy, dz);
                         // LOGvars(tau, w, idx_flat, current_kext*1e6, ds, max_s, tau_absorbed, fs, photon_power);
                         // LOGvars(dist_x, dist_y, dist_z);
-                        w = 0.f;
+                        w = 0.;
                         break;
                     }
                     // field boundary detection in x direction - wrapping
-                    bool at_far_wall_x     = (fabsf(x - x_max) < eps);
-                    bool going_forwards_x  = (dx >= 0.f);
+                    bool at_far_wall_x     = (std::abs(x - x_max) < eps);
+                    bool going_forwards_x  = (dx >= static_cast<Real>(0.));
                     if (at_far_wall_x && going_forwards_x) 
                     { 
-                        x = 0.f;
+                        x = 0.;
                         idx_x = 0;
                     }
-                    bool at_near_wall_x    = (fabsf(x) < eps);
-                    bool going_backwards_x = (dx < 0.f);
+                    bool at_near_wall_x    = (std::abs(x) < eps);
+                    bool going_backwards_x = (dx < static_cast<Real>(0.));
                     if (at_near_wall_x && going_backwards_x) 
                     { 
                         x = x_max; 
@@ -240,15 +238,15 @@ void photon_propagation(const AliasTable_float& aliastable,
                     }
 
                     // field boundary detection in y direction - wrapping
-                    bool at_far_wall_y     = (fabsf(y - y_max) < eps);
-                    bool going_forwards_y  = (dy >= 0.f);
+                    bool at_far_wall_y     = (std::abs(y - y_max) < eps);
+                    bool going_forwards_y  = (dy >= static_cast<Real>(0.));
                     if (at_far_wall_y && going_forwards_y) 
                     { 
-                        y = 0.f; 
+                        y = 0.; 
                         idx_y = 0;
                     }
-                    bool at_near_wall_y    = (fabsf(y) < eps);
-                    bool going_backwards_y = (dy < 0.f);
+                    bool at_near_wall_y    = (std::abs(y) < eps);
+                    bool going_backwards_y = (dy < static_cast<Real>(0.));
                     if (at_near_wall_y && going_backwards_y) 
                     { 
                         y = y_max; 
@@ -257,15 +255,15 @@ void photon_propagation(const AliasTable_float& aliastable,
 
 
                     // field boundary detection in z direction - loss through TOA or absorbtion by surface
-                    bool at_TOA            = (fabsf(z - z_max) < eps);
-                    bool going_up          = (dz >= 0.f);
+                    bool at_TOA            = (std::abs(z - z_max) < eps);
+                    bool going_up          = (dz >= static_cast<Real>(0.));
                     if (at_TOA && going_up)
                     {
-                        tau = 0.f;
+                        tau = 0.;
                         int idx_tile = idx_y * ktot + idx_x;
                         
-                        float absorbed_photon_power = w*photon_power;
-                        w = 0.f;
+                        Real absorbed_photon_power = w*photon_power;
+                        w = 0.;
 
                         field_TOA_net_phi_local[idx_tile] += absorbed_photon_power;
                         if (domain_section == 0)
@@ -277,23 +275,23 @@ void photon_propagation(const AliasTable_float& aliastable,
                         }
                         break;
                     }
-                    bool at_surface        = (fabsf(z) < eps);
-                    bool going_down        = (dz < 0.f);
+                    bool at_surface        = (std::abs(z) < eps);
+                    bool going_down        = (dz < static_cast<Real>(0.));
                     if (at_surface && going_down)
                     {
-                        tau = 0.f;
+                        tau = 0.;
                         int idx_tile = idx_y * ktot + idx_x;
 
                         if (enable_scattering)
                         {
-                            current_ssa = 1.f - field_sfc_eps[idx_tile]; // surface reflectivity is 1 - emissivity
+                            current_ssa = static_cast<Real>(1.) - field_sfc_eps[idx_tile]; // surface reflectivity is 1 - emissivity
                         }
                         else
                         {
-                            current_ssa = 0.f;
+                            current_ssa = 0.;
                         }
                         
-                        absorbed_photon_power = (1.f - current_ssa)*w*photon_power;
+                        absorbed_photon_power = (static_cast<Real>(1.) - current_ssa)*w*photon_power;
                         w *= current_ssa;
 
                         field_sfc_net_phi_local[idx_tile] += absorbed_photon_power;
@@ -309,28 +307,28 @@ void photon_propagation(const AliasTable_float& aliastable,
                         {
                             if (w < w_crit)
                             {
-                                float rhow = rng_local.uniform();
+                                Real rhow = rng_local.uniform();
                                 if (rhow >= w)
                                 {
-                                    w = 0.f;
+                                    w = 0.;
                                     break;
                                 } else {
-                                    w = 1.f;
+                                    w = 1.;
                                     idx_z = 0;
 
-                                    mu = sqrtf(rng_local.uniform());
-                                    az = rng_local.uniform()*2.f*cfloat::PI;
+                                    mu = std::sqrt(rng_local.uniform());
+                                    az = rng_local.uniform()*static_cast<Real>(2.)*constants::PI;
 
-                                    s = sqrtf(1.f - mu*mu);
-                                    dx = s*cosf(az);
-                                    dy = s*sinf(az);
+                                    s = std::sqrt(static_cast<Real>(1.) - mu*mu);
+                                    dx = s*std::cos(az);
+                                    dy = s*std::sin(az);
                                     dz = mu;
 
-                                    dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
-                                    dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
-                                    dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
+                                    dx = std::copysign(std::max(std::abs(dx), dx_min), dx);
+                                    dy = std::copysign(std::max(std::abs(dy), dy_min), dy);
+                                    dz = std::copysign(std::max(std::abs(dz), dz_min), dz);
 
-                                    tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
+                                    tau = std::min(-std::log(rng_local.uniform()), tau_maxval);
                                     continue;
                                 }
                             }
@@ -338,19 +336,19 @@ void photon_propagation(const AliasTable_float& aliastable,
                             {
                                 idx_z = 0;
 
-                                mu = sqrtf(rng_local.uniform());
-                                az = rng_local.uniform()*2.f*cfloat::PI;
+                                mu = std::sqrt(rng_local.uniform());
+                                az = rng_local.uniform()*static_cast<Real>(2.)*constants::PI;
                                 
-                                s = sqrtf(1.f - mu*mu);
-                                dx = s*cosf(az);
-                                dy = s*sinf(az);
+                                s = std::sqrt(static_cast<Real>(1.) - mu*mu);
+                                dx = s*std::cos(az);
+                                dy = s*std::sin(az);
                                 dz = mu;
 
-                                dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
-                                dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
-                                dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
+                                dx = std::copysign(std::max(std::abs(dx), dx_min), dx);
+                                dy = std::copysign(std::max(std::abs(dy), dy_min), dy);
+                                dz = std::copysign(std::max(std::abs(dz), dz_min), dz);
 
-                                tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
+                                tau = std::min(-std::log(rng_local.uniform()), tau_maxval);
                                 continue;
                             }
                         }
@@ -363,13 +361,13 @@ void photon_propagation(const AliasTable_float& aliastable,
                     idx_flat = idx_z*jktot + idx_y*ktot + idx_x;
 
                     // Loading kext
-                    float current_kext = field_kext[idx_flat];
+                    Real current_kext = field_kext[idx_flat];
 
                     // Scanning collision with cell boundaries
-                    float time_x, time_y, time_z;
-                    float dnx, dny, dnz;
+                    Real time_x, time_y, time_z;
+                    Real dnx, dny, dnz;
 
-                    if (dx >= 0.f) // x
+                    if (dx >= static_cast<Real>(0.)) // x
                     {
                         dnx = arr_xh[idx_x + 1] - x;
                     } else {
@@ -377,7 +375,7 @@ void photon_propagation(const AliasTable_float& aliastable,
                     }
                     time_x = dnx/dx;
 
-                    if (dy >= 0.f) // y
+                    if (dy >= static_cast<Real>(0.)) // y
                     {
                         dny = arr_yh[idx_y + 1] - y;
                     } else {
@@ -385,7 +383,7 @@ void photon_propagation(const AliasTable_float& aliastable,
                     }
                     time_y = dny/dy;
 
-                    if (dz >= 0.f) // z
+                    if (dz >= static_cast<Real>(0.)) // z
                     {
                         dnz = arr_zh[idx_z + 1] - z;
                     } else {
@@ -420,9 +418,9 @@ void photon_propagation(const AliasTable_float& aliastable,
 
 
                     // Calculating distance traveled
-                    float ds           = sqrtf(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
-                    float max_s        = tau/current_kext;
-                    float tau_absorbed = current_kext*ds;
+                    Real ds           = std::sqrt(dist_x*dist_x + dist_y*dist_y + dist_z*dist_z);
+                    Real max_s        = tau/current_kext;
+                    Real tau_absorbed = current_kext*ds;
 
 
                     if (Pesc_mode && !out_of_cell)
@@ -459,10 +457,10 @@ void photon_propagation(const AliasTable_float& aliastable,
                         else
                         {
                             // Cell travels only partly through the cell and is absorbed/scattered
-                            tau = 0.f;
+                            tau = 0.;
 
                             // Traveling fraction of a distance
-                            float fs = max_s / ds;
+                            Real fs = max_s / ds;
                             x += dist_x*fs;
                             y += dist_y*fs;
                             z += dist_z*fs;
@@ -475,12 +473,12 @@ void photon_propagation(const AliasTable_float& aliastable,
                             }
                             else
                             {
-                                current_ssa = 0.f;
-                                current_asy = 0.f;
+                                current_ssa = 0.;
+                                current_asy = 0.;
                             }
                             
                             // Updating photon weight and carrying power
-                            absorbed_photon_power = (1 - current_ssa)*w*photon_power;
+                            absorbed_photon_power = (static_cast<Real>(1.) - current_ssa)*w*photon_power;
                             w *= current_ssa;
 
                             // Updating absorbed/emitted power field
@@ -501,45 +499,45 @@ void photon_propagation(const AliasTable_float& aliastable,
                             {
                                 if (w < w_crit)
                                 {
-                                    float rhow = rng_local.uniform();
+                                    Real rhow = rng_local.uniform();
                                     if (rhow >= w)
                                     {
-                                        w = 0.f;
+                                        w = 0.;
                                         break;
                                     } else {
-                                        w = 1.f;
-                                        Vec3float vec_new = generate_angle_HG_float(dx, dy, dz, current_asy, rng_local);
+                                        w = 1.;
+                                        Vec3 vec_new = generate_angle_HG(dx, dy, dz, current_asy, rng_local);
                                         dx = vec_new.x;
                                         dy = vec_new.y;
                                         dz = vec_new.z;
 
-                                        dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
-                                        dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
-                                        dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
+                                        dx = std::copysign(std::max(std::abs(dx), dx_min), dx);
+                                        dy = std::copysign(std::max(std::abs(dy), dy_min), dy);
+                                        dz = std::copysign(std::max(std::abs(dz), dz_min), dz);
 
-                                        tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
+                                        tau = std::min(-std::log(rng_local.uniform()), tau_maxval);
                                     }
                                 }
                                 else
                                 {
-                                    Vec3float vec_new = generate_angle_HG_float(dx, dy, dz, current_asy, rng_local);
+                                    Vec3 vec_new = generate_angle_HG(dx, dy, dz, current_asy, rng_local);
                                     dx = vec_new.x;
                                     dy = vec_new.y;
                                     dz = vec_new.z;
 
-                                    dx = copysignf(fmaxf(fabsf(dx), dx_min), dx);
-                                    dy = copysignf(fmaxf(fabsf(dy), dy_min), dy);
-                                    dz = copysignf(fmaxf(fabsf(dz), dz_min), dz);
+                                    dx = std::copysign(std::max(std::abs(dx), dx_min), dx);
+                                    dy = std::copysign(std::max(std::abs(dy), dy_min), dy);
+                                    dz = std::copysign(std::max(std::abs(dz), dz_min), dz);
 
-                                    tau = fminf32(-logf(rng_local.uniform()), tau_maxval);
+                                    tau = std::min(-std::log(rng_local.uniform()), tau_maxval);
                                 }
                             }
                         }
                     }
                 }
-                if (tau <= 0.f)
+                if (tau <= static_cast<Real>(0.))
                 {
-                    if (w > 0.f)
+                    if (w > static_cast<Real>(0.))
                     {
                         break; // caused by numerical error in 'tau -= tau_absorbed (= 0)'
                     }

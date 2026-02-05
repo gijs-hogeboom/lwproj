@@ -1,17 +1,19 @@
 #include <vector>
 #include <string>
 
+#include "precision.h"
 
-std::vector<float> run_MC(const std::vector<float>& arr_z,
-                           const std::vector<float>& arr_zh,
-                           const std::vector<float>& arr_dz,
-                           const std::vector<float>& field_atm_kext,
-                           const std::vector<float>& field_atm_B,
-                           const std::vector<float>& field_sfc_B,
-                           const std::vector<float>& field_atm_SSA,
-                           const std::vector<float>& field_atm_ASY,
-                           const float dx,
-                           const float dy,
+
+std::vector<Real> run_MC(const std::vector<Real>& arr_z,
+                           const std::vector<Real>& arr_zh,
+                           const std::vector<Real>& arr_dz,
+                           const std::vector<Real>& field_atm_kext,
+                           const std::vector<Real>& field_atm_B,
+                           const std::vector<Real>& field_sfc_B,
+                           const std::vector<Real>& field_atm_SSA,
+                           const std::vector<Real>& field_atm_ASY,
+                           const Real dx,
+                           const Real dy,
                            const int ktot,
                            const int jtot,
                            const int itot,

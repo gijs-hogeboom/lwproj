@@ -209,16 +209,15 @@ double f_Pesc_MC3D(const double cell_dx,
 
 
 
-void write_Pesc_curve(double dx, double dy, double dz, int Nphot)
+void write_Pesc_curve(double dx, double dy, double dz, int Nphot, int N_curvepoints)
 {
     double kext_low = 1e-10;
     double kext_high = 1e4;
-    int N_curvepoints = 400;
-
+    
     std::vector<double> arr_kext = loglinspace(kext_low, kext_high, N_curvepoints);
 
     std::ostringstream filename;
-    filename << "../data_input/Esc_curves_new/Esc_kext_curve_"
+    filename << "../data_input/Esc_curves/Esc_kext_curve_"
              << std::fixed << std::setprecision(0) << dx << "_"
              << std::fixed << std::setprecision(0) << dy << "_"
              << std::fixed << std::setprecision(2) << dz << ".csv";
@@ -237,13 +236,19 @@ void write_Pesc_curve(double dx, double dy, double dz, int Nphot)
         double cell_kext = arr_kext[i];
         double Pesc = f_Pesc_MC3D(dx, dy, dz, cell_kext, Nphot);
         file << cell_kext << ',' << Pesc << "\n";
-        std::cout << i << std::endl;
+        std::cout << dx << ',' << dy << ',' << dz << ',' << i << std::endl;
     }
 }
 
 
 int main(int argc, char* argv[])
 {
+    // Arg 1: dx
+    // Arg 2: dy
+    // Arg 3: dz
+    // Arg 4: nphot_pow
+    // Arg 5: N_curvepoints
+    
     using std::chrono::high_resolution_clock;
     using std::chrono::duration_cast;
     using std::chrono::duration;
@@ -251,18 +256,19 @@ int main(int argc, char* argv[])
 
 
 
-    int nphot_pow = 26;
+    int nphot_pow = std::stoi(argv[4]);
 
 
     int Nphot = pow(2, nphot_pow);
 
-    double dx = 100.f;
-    double dy = 100.f;
-    double dz = 100.f;
-    double kext = 1.f;
+    double dx = std::stod(argv[1]);
+    double dy = std::stod(argv[2]);
+    double dz = std::stod(argv[3]);
+    int N_curvepoints = std::stoi(argv[5]);
+    
 
     std::cout << "Starting..." << std::endl;
-    write_Pesc_curve(dx, dy, dz, Nphot);
+    write_Pesc_curve(dx, dy, dz, Nphot, N_curvepoints);
 
     return 0;
 }

@@ -8,6 +8,7 @@
 
 #include "MC.h"
 #include "plane_parallel.h"
+#include "precision.h"
 #include "util.h"
 
 
@@ -26,7 +27,7 @@ int main(int argc, char* argv[])
     // Handling input
     std::string arg1 = "s3D1";
     std::string arg2 = "power";
-    float arg3 = 20.;
+    Real arg3 = 20.;
     bool arg4 = false;
     bool arg5 = false;
 
@@ -40,7 +41,7 @@ int main(int argc, char* argv[])
     }
     if (argc > 3)
     {
-        arg3 = std::stof(argv[3]);
+        arg3 = static_cast<Real>(std::stof(argv[3]));
     }
     if (argc > 4)
     {
@@ -56,7 +57,7 @@ int main(int argc, char* argv[])
 
 
     // Run settings
-    float Nphot_pow = arg3;
+    Real Nphot_pow = arg3;
     long int Nphot = (long int) pow(2, Nphot_pow);
 
 
@@ -95,21 +96,21 @@ int main(int argc, char* argv[])
     std::string hr_filename_PP = "../data_output/heating_rates/HR_PP_" + CASE + ".dat";
 
     // Initializing variables to load
-    std::vector<float> arr_z;
-    std::vector<float> arr_zh;
-    std::vector<float> arr_dz;
-    std::vector<float> field_atm_kext;
-    std::vector<float> field_atm_B;
-    std::vector<float> field_sfc_B;
-    std::vector<float> field_atm_SSA;
-    std::vector<float> field_atm_ASY;
-    float Bsfc, dx, dy;
+    std::vector<Real> arr_z;
+    std::vector<Real> arr_zh;
+    std::vector<Real> arr_dz;
+    std::vector<Real> field_atm_kext;
+    std::vector<Real> field_atm_B;
+    std::vector<Real> field_sfc_B;
+    std::vector<Real> field_atm_SSA;
+    std::vector<Real> field_atm_ASY;
+    Real Bsfc, dx, dy;
     int itot, jtot, ktot;
 
     // Reading the case json file
     std::string caseID = CASE.substr(0, 3);
     
-    float kext_minval = 1e-10;
+    Real kext_minval = 1e-10;
 
 
     // File input handling
@@ -127,9 +128,9 @@ int main(int argc, char* argv[])
         nlohmann::json j;
         file_cases >> j;
 
-        arr_z = j["z_" + CASE].get<std::vector<float>>();
-        arr_zh = j["zh_" + CASE].get<std::vector<float>>();
-        arr_dz = j["dz_" + CASE].get<std::vector<float>>();
+        arr_z = j["z_" + CASE].get<std::vector<Real>>();
+        arr_zh = j["zh_" + CASE].get<std::vector<Real>>();
+        arr_dz = j["dz_" + CASE].get<std::vector<Real>>();
 
         // jtot, ktot, dx and dy are all predetermined in this case
         itot = arr_z.size();
@@ -142,11 +143,11 @@ int main(int argc, char* argv[])
         dy = 100;
 
         // Generating fields from 1D kext and Batm data
-        std::vector<float> arr_kext = j["kext_" + CASE].get<std::vector<float>>();
-        std::vector<float> arr_Batm = j["Batm_" + CASE].get<std::vector<float>>();
-        std::vector<float> arr_SSA = j["SSA_" + CASE].get<std::vector<float>>();
-        std::vector<float> arr_ASY = j["ASY_" + CASE].get<std::vector<float>>();
-        Bsfc = j["Bsfc_" + CASE].get<float>();
+        std::vector<Real> arr_kext = j["kext_" + CASE].get<std::vector<Real>>();
+        std::vector<Real> arr_Batm = j["Batm_" + CASE].get<std::vector<Real>>();
+        std::vector<Real> arr_SSA = j["SSA_" + CASE].get<std::vector<Real>>();
+        std::vector<Real> arr_ASY = j["ASY_" + CASE].get<std::vector<Real>>();
+        Bsfc = j["Bsfc_" + CASE].get<Real>();
 
         field_atm_kext.resize(n_volumes);
         field_atm_B.resize(n_volumes);
@@ -188,9 +189,9 @@ int main(int argc, char* argv[])
         
         std::string caseNr = CASE.substr(3, CASE.length());
 
-        arr_z = j[caseNr]["z"].get<std::vector<float>>();
-        arr_zh = j[caseNr]["zh"].get<std::vector<float>>();
-        arr_dz = j[caseNr]["dz"].get<std::vector<float>>();
+        arr_z = j[caseNr]["z"].get<std::vector<Real>>();
+        arr_zh = j[caseNr]["zh"].get<std::vector<Real>>();
+        arr_dz = j[caseNr]["dz"].get<std::vector<Real>>();
 
 
         std::vector<int> case_limits = j[caseNr]["case_limits"].get<std::vector<int>>();
@@ -204,17 +205,17 @@ int main(int argc, char* argv[])
         dx = cell_size_horizontal[0];
         dy = cell_size_horizontal[1];
 
-        Bsfc = j[caseNr]["Bsfc"].get<float>();
+        Bsfc = j[caseNr]["Bsfc"].get<Real>();
 
         // Generating kext and Batm arrays
-        std::vector<float> col_kext_open  = j[caseNr]["kext_open"].get<std::vector<float>>();
-        std::vector<float> col_kext_cloud = j[caseNr]["kext_cloud"].get<std::vector<float>>();
-        std::vector<float> col_Batm_open  = j[caseNr]["Batm_open"].get<std::vector<float>>();
-        std::vector<float> col_Batm_cloud = j[caseNr]["Batm_cloud"].get<std::vector<float>>();
-        std::vector<float> col_SSA_open   = j[caseNr]["SSA_open"].get<std::vector<float>>();
-        std::vector<float> col_SSA_cloud  = j[caseNr]["SSA_cloud"].get<std::vector<float>>();
-        std::vector<float> col_ASY_open   = j[caseNr]["ASY_open"].get<std::vector<float>>();
-        std::vector<float> col_ASY_cloud  = j[caseNr]["ASY_cloud"].get<std::vector<float>>();
+        std::vector<Real> col_kext_open  = j[caseNr]["kext_open"].get<std::vector<Real>>();
+        std::vector<Real> col_kext_cloud = j[caseNr]["kext_cloud"].get<std::vector<Real>>();
+        std::vector<Real> col_Batm_open  = j[caseNr]["Batm_open"].get<std::vector<Real>>();
+        std::vector<Real> col_Batm_cloud = j[caseNr]["Batm_cloud"].get<std::vector<Real>>();
+        std::vector<Real> col_SSA_open   = j[caseNr]["SSA_open"].get<std::vector<Real>>();
+        std::vector<Real> col_SSA_cloud  = j[caseNr]["SSA_cloud"].get<std::vector<Real>>();
+        std::vector<Real> col_ASY_open   = j[caseNr]["ASY_open"].get<std::vector<Real>>();
+        std::vector<Real> col_ASY_cloud  = j[caseNr]["ASY_cloud"].get<std::vector<Real>>();
 
         std::vector<int> cloud_coords_x = j[caseNr]["cloud_coords_x"].get<std::vector<int>>();
         std::vector<int> cloud_coords_y = j[caseNr]["cloud_coords_y"].get<std::vector<int>>();
@@ -319,6 +320,7 @@ int main(int argc, char* argv[])
         // Loading vars
         int var_tau, var_Batm, var_Bsfc, var_SSA, var_ASY;
         int var_z, var_zh;
+        int var_xh, var_yh;
 
         NC_CHECK(nc_inq_varid(ncid_optics, "lw_tau",     &var_tau));
         NC_CHECK(nc_inq_varid(ncid_optics, "lay_source", &var_Batm));
@@ -328,7 +330,8 @@ int main(int argc, char* argv[])
 
         NC_CHECK(nc_inq_varid(ncid_grid,   "lay",        &var_z));
         NC_CHECK(nc_inq_varid(ncid_grid,   "lev",        &var_zh));
-
+        NC_CHECK(nc_inq_varid(ncid_grid,   "xh",         &var_xh));
+        NC_CHECK(nc_inq_varid(ncid_grid,   "yh",         &var_yh));
 
         // Obtaining information
         int ndims;
@@ -358,7 +361,7 @@ int main(int argc, char* argv[])
         std::vector<double> dfield_atm_ASY(n_volumes);
         std::vector<double> dfield_sfc_B(n_tiles);
 
-
+        
 
         // Filling in data vectors
         NC_CHECK(nc_get_var_double(ncid_grid, var_z,  darr_z.data()));
@@ -386,8 +389,7 @@ int main(int argc, char* argv[])
 
         NC_CHECK(nc_get_vara_double(ncid_optics, var_Bsfc, start3, count3, dfield_sfc_B.data()));
 
-        
-        // casting doubles to floats, filling in actual values
+        // casting doubles to "Real"s, filling in actual values
         itot = (int) itot_local;
         jtot = (int) jtot_local;
         ktot = (int) ktot_local;
@@ -404,43 +406,45 @@ int main(int argc, char* argv[])
 
         for (int i = 0; i < itot; i++)
         {
-            arr_z[i]  = (float) darr_z[i];
-            arr_zh[i] = (float) darr_zh[i];
-            arr_dz[i] = (float) darr_dz[i];
+            arr_z[i]  = static_cast<Real>(darr_z[i]);
+            arr_zh[i] = static_cast<Real>(darr_zh[i]);
+            arr_dz[i] = static_cast<Real>(darr_dz[i]);
             for (int j = 0; j < jtot; j++)
             {
                 for (int k = 0; k < ktot; k++)
                 {
                     int idx = i * n_tiles + j*ktot + k;
 
-                    field_atm_kext[idx] = std::max((float) (dfield_atm_kext[idx] / arr_dz[i]), kext_minval);
-                    field_atm_B[idx]    = (float) dfield_atm_B[idx];
-                    field_atm_SSA[idx]  = (float) dfield_atm_SSA[idx];
-                    field_atm_ASY[idx]  = (float) dfield_atm_ASY[idx];
+                    field_atm_kext[idx] = std::max(static_cast<Real>((dfield_atm_kext[idx] / arr_dz[i])), kext_minval);
+                    field_atm_B[idx]    = static_cast<Real>(dfield_atm_B[idx]);
+                    field_atm_SSA[idx]  = static_cast<Real>(dfield_atm_SSA[idx]);
+                    field_atm_ASY[idx]  = static_cast<Real>(dfield_atm_ASY[idx]);
 
                     if (i == 0)
                     {
-                        field_sfc_B[idx] = (float) dfield_sfc_B[idx];
+                        field_sfc_B[idx] = static_cast<Real>(dfield_sfc_B[idx]);
                     }
+                    
                 }
             }
         }
-        arr_zh[itot] = (float) darr_zh[itot]; // filling in final upper value, not captured in the loop
+        arr_zh[itot] = static_cast<Real>(darr_zh[itot]); // filling in final upper value, not captured in the loop
 
         // Deducing dx and dy
         std::vector<double> arr_xh(ktot);
         std::vector<double> arr_yh(jtot);
-        NC_CHECK(nc_get_var_double(ncid_grid, var_zh, arr_xh.data()));
-        NC_CHECK(nc_get_var_double(ncid_grid, var_zh, arr_yh.data()));
-        dx = (float) arr_xh[1] - arr_xh[0];
-        dy = (float) arr_yh[1] - arr_yh[0];
+        NC_CHECK(nc_get_var_double(ncid_grid, var_xh, arr_xh.data()));
+        NC_CHECK(nc_get_var_double(ncid_grid, var_yh, arr_yh.data()));
+        dx = static_cast<Real>(arr_xh[1] - arr_xh[0]);
+        dy = static_cast<Real>(arr_yh[1] - arr_yh[0]);
+        std::cout << dx << ',' << dy << std::endl;
     }
 
     
 
         
-    std::vector<float> heating_rates_MC(itot);
-    std::vector<float> heating_rates_PP(itot);
+    std::vector<Real> heating_rates_MC(itot);
+    std::vector<Real> heating_rates_PP(itot);
 
     auto MC_t1 = std::chrono::high_resolution_clock::now();
     if (ENABLE_MC)
@@ -535,9 +539,9 @@ int main(int argc, char* argv[])
     duration<double, std::milli> PP_time = PP_t2 - PP_t1;
     
     // Loading results
-    std::vector<float> heating_rates_PP_in(itot, 0.);
-    std::vector<float> heating_rates_MC_in(itot, 0.);
-    std::vector<float> arr_z_in(itot, 0.);
+    std::vector<double> heating_rates_PP_in(itot, 0.);
+    std::vector<double> heating_rates_MC_in(itot, 0.);
+    std::vector<double> arr_z_in(itot, 0.);
 
     std::fstream file_MCinput(hr_filename_MC);
     std::fstream file_PPinput(hr_filename_PP);
@@ -594,7 +598,7 @@ int main(int argc, char* argv[])
 
 
     ////////////// Calculating metrics ///////////////////////
-    float RMSE_tot, ME_tot;
+    double RMSE_tot, ME_tot;
 
     for (size_t i = 0; i < itot; i++)
     {

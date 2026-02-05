@@ -13,20 +13,21 @@
 
 #include "util.h"
 #include "photprop.h"
+#include "precision.h"
 
 
 
 
-std::vector<float> run_MC(const std::vector<float>& arr_z,
-                          const std::vector<float>& arr_zh,
-                          const std::vector<float>& arr_dz,
-                          const std::vector<float>& field_atm_kext,
-                          const std::vector<float>& field_atm_B,
-                          const std::vector<float>& field_sfc_B,
-                          const std::vector<float>& field_atm_SSA,
-                          const std::vector<float>& field_atm_ASY,
-                          const float dx,
-                          const float dy,
+std::vector<Real> run_MC(const std::vector<Real>& arr_z,
+                          const std::vector<Real>& arr_zh,
+                          const std::vector<Real>& arr_dz,
+                          const std::vector<Real>& field_atm_kext,
+                          const std::vector<Real>& field_atm_B,
+                          const std::vector<Real>& field_sfc_B,
+                          const std::vector<Real>& field_atm_SSA,
+                          const std::vector<Real>& field_atm_ASY,
+                          const Real dx,
+                          const Real dy,
                           const int ktot,
                           const int jtot,
                           const int itot,
@@ -54,14 +55,14 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     int n_volumes = itot * jtot * ktot;
     int n_tiles   = jtot * ktot;
 
-    float x_max = ktot * dx;
-    float y_max = jtot * dy;
-    float z_max = arr_zh[arr_zh.size() - 1];
+    Real x_max = ktot * dx;
+    Real y_max = jtot * dy;
+    Real z_max = arr_zh[arr_zh.size() - 1];
 
-    std::vector<float> arr_xh(ktot + 1);
-    std::vector<float> arr_yh(jtot + 1);
-    std::vector<float> arr_x(ktot);
-    std::vector<float> arr_y(jtot);
+    std::vector<Real> arr_xh(ktot + 1);
+    std::vector<Real> arr_yh(jtot + 1);
+    std::vector<Real> arr_x(ktot);
+    std::vector<Real> arr_y(jtot);
 
 
     // Generating arr_x(h) and arr_y(h)
@@ -84,14 +85,14 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
 
     // Initializing optical property fields
-    std::vector<float> field_atm_phi(n_volumes);
-    std::vector<float> field_atm_netto_power(n_volumes);
+    std::vector<Real> field_atm_phi(n_volumes);
+    std::vector<Real> field_atm_netto_power(n_volumes);
 
-    std::vector<float> field_sfc_phi(n_tiles);
-    std::vector<float> field_sfc_emissivity(n_tiles, 1.0);
-    std::vector<float> field_sfc_netto_power(n_tiles);
+    std::vector<Real> field_sfc_phi(n_tiles);
+    std::vector<Real> field_sfc_emissivity(n_tiles, static_cast<Real>(1.));
+    std::vector<Real> field_sfc_netto_power(n_tiles);
 
-    std::vector<float> field_TOA_netto_power(n_tiles);
+    std::vector<Real> field_TOA_netto_power(n_tiles);
 
 
     // Generating fields
@@ -103,9 +104,9 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
             for (int k = 0; k < ktot; k++)
             {
                 int idx_atm = i * ktot * jtot + j * ktot + k;
-                float current_kext = field_atm_kext[idx_atm];
-                float current_Batm = field_atm_B[idx_atm];
-                float phi_atm = 4*cfloat::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
+                Real current_kext = field_atm_kext[idx_atm];
+                Real current_Batm = field_atm_B[idx_atm];
+                Real phi_atm = static_cast<Real>(4.)*constants::PI * current_kext * current_Batm * dx * dy * arr_dz[i];
 
                 // Adjusting for single scattering albedo
                 if (enable_scattering) { phi_atm *= (1 - field_atm_SSA[idx_atm]); }
@@ -115,7 +116,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                 if (i == 0)
                 {
                     int idx_sfc = j * ktot + k;
-                    float phi_sfc = cfloat::PI * field_sfc_emissivity[idx_sfc] * field_sfc_B[idx_sfc] * dx * dy;
+                    Real phi_sfc = constants::PI * field_sfc_emissivity[idx_sfc] * field_sfc_B[idx_sfc] * dx * dy;
 
                     // Adjusting for emission
                     if (enable_scattering) { phi_sfc *= field_sfc_emissivity[idx_sfc]; }
@@ -138,7 +139,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
         for (int i = 0; i < itot; i++)
         {
 
-            float dz = arr_dz[i];
+            Real dz = arr_dz[i];
             std::string Pesc_path_name = f_Pesccurve_name(dx, dy, dz);  
 
             std::fstream Pesc_curve(Pesc_path_name);
@@ -146,7 +147,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
             if (!Pesc_curve.is_open())
             {
                 std::cout << "WARNING! Pesc curve '" << Pesc_path_name << "' not found!" << std::endl;
-                std::vector<float> exit_vec(1);
+                std::vector<Real> exit_vec(1);
                 return exit_vec;
             }
             
@@ -155,8 +156,8 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
             Pesc_curve.seekg(0, std::ios::beg);
             
 
-            std::vector<float> arr_kext(N_points);
-            std::vector<float> arr_Pesc(N_points);
+            std::vector<Real> arr_kext(N_points);
+            std::vector<Real> arr_Pesc(N_points);
 
             std::string line;
             int idx = 0;
@@ -168,26 +169,21 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                 std::stringstream ss(line);
                 std::string cell;
                 std::getline(ss, cell, ','); // kext value
-                float kext = std::stod(cell);
+                Real kext = static_cast<Real>(std::stod(cell));
                 if ((kext >= 1e-15) && (kext <= 1e5))
                 {
                     arr_kext[idx] = kext;
                 }
                 std::getline(ss, cell, ','); // Pesc value
-                float Pesc = std::stod(cell);
-                if ((kext >= 1e-15) && (kext <= 1e5))
+                Real Pesc = static_cast<Real>(std::stod(cell));
+                if ((kext >= static_cast<Real>(1e-15)) && (kext <= static_cast<Real>(1e5)))
                 {
                     arr_Pesc[idx] = Pesc;
                 }
                 idx++;
             }
             
-
-            // LOGvec(arr_kext);
-    
-            LinearInterpolator_float f_Pesc(arr_kext, arr_Pesc);
-            // CubicSpline f_spline;
-            // f_spline.set_points(arr_kext, arr_Pesc);
+            LinearInterpolator f_Pesc(arr_kext, arr_Pesc);
 
             for (int j = 0; j < jtot; j++)
             {
@@ -195,23 +191,22 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                 {
                     int idx = i*jtot*ktot + j*ktot + k;
 
-                    float kext = field_atm_kext[idx];
+                    Real kext = field_atm_kext[idx];
 
-                    double Pesc = f_Pesc(kext);
-                    // float Pesc = f_spline(kext);
+                    Real Pesc = f_Pesc(kext);
+                    
+                    Real emitted_power = Pesc * field_atm_phi[idx];
 
-                    double emitted_power = Pesc * field_atm_phi[idx];
-
-                    field_atm_phi[idx] = (float) emitted_power;
+                    field_atm_phi[idx] = emitted_power;
                 }
             }
         }
     }
 
     // Partitioning photons between Atm and Sfc
-    float phi_atm_total = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0);
-    float phi_sfc_total = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0);
-    float phi_ratio_atm_sfc = phi_atm_total / (phi_atm_total + phi_sfc_total);
+    Real phi_atm_total = std::accumulate(field_atm_phi.begin(), field_atm_phi.end(), 0.0);
+    Real phi_sfc_total = std::accumulate(field_sfc_phi.begin(), field_sfc_phi.end(), 0.0);
+    Real phi_ratio_atm_sfc = phi_atm_total / (phi_atm_total + phi_sfc_total);
 
     long int Natm = (long int)  (phi_ratio_atm_sfc * Nphot);  
     long int Nsfc = Nphot - Natm;
@@ -239,14 +234,14 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     
     // Generating AliasTabel: this will act as the PDF for where photons are
     // sampled within the domain
-    std::vector<float> aliastable_weights_atm;
-    std::vector<float> aliastable_weights_sfc;
+    std::vector<Real> aliastable_weights_atm;
+    std::vector<Real> aliastable_weights_sfc;
 
     
     if (INTERCELL_TECHNIQUE == "uniform")
     {
-        aliastable_weights_atm = std::vector<float>(n_volumes, 1.0);
-        aliastable_weights_sfc = std::vector<float>(n_tiles, 1.0);
+        aliastable_weights_atm = std::vector<Real>(n_volumes, static_cast<Real>(1.));
+        aliastable_weights_sfc = std::vector<Real>(n_tiles, static_cast<Real>(1.));
     } else
     if (INTERCELL_TECHNIQUE == "power")
     {
@@ -257,7 +252,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     if (INTERCELL_TECHNIQUE == "power-gradient")
     {
         // Creating the power-gradient field (atmosphere)
-        std::vector<float> field_atm_phi_gradient(n_volumes);
+        std::vector<Real> field_atm_phi_gradient(n_volumes);
         for (size_t i = 0; i < itot; i++)
         {
             for (size_t j = 0; j < jtot; j++)
@@ -274,8 +269,8 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                     size_t idx_x_pos  = i*jtot*ktot + j*ktot + (k+1);
                     size_t idx_x_neg  = i*jtot*ktot + j*ktot + (k-1);
                     
-                    float dz_tot, dx_tot, dy_tot;
-                    float phi_z_up, phi_z_down, phi_y_pos, phi_y_neg, phi_x_pos, phi_x_neg;
+                    Real dz_tot, dx_tot, dy_tot;
+                    Real phi_z_up, phi_z_down, phi_y_pos, phi_y_neg, phi_x_pos, phi_x_neg;
 
                     dx_tot = 2*dx;
                     dy_tot = 2*dy;
@@ -332,11 +327,11 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
 
                     // Calculating the gradient
-                    float term_x = (phi_x_pos - phi_x_neg)/dx_tot;
-                    float term_y = (phi_y_pos - phi_y_neg)/dy_tot;
-                    float term_z = (phi_z_up - phi_z_down)/dz_tot;
+                    Real term_x = (phi_x_pos - phi_x_neg)/dx_tot;
+                    Real term_y = (phi_y_pos - phi_y_neg)/dy_tot;
+                    Real term_z = (phi_z_up - phi_z_down)/dz_tot;
 
-                    float gradient_magnitude = sqrt(term_x*term_x + term_y*term_y + term_z*term_z);
+                    Real gradient_magnitude = std::sqrt(term_x*term_x + term_y*term_y + term_z*term_z);
 
                     // Inserting value
                     field_atm_phi_gradient[idx_atm] = gradient_magnitude;
@@ -346,7 +341,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
         }
 
         // Surface (only gradient in z direction is considered important)
-        std::vector<float> field_sfc_phi_gradient(n_tiles);
+        std::vector<Real> field_sfc_phi_gradient(n_tiles);
         for (size_t j = 0; j < jtot; j++)
         {
             for (size_t k = 0; k < ktot; k++)
@@ -366,8 +361,8 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
 
 
-    AliasTable_float AliasTable_atm(aliastable_weights_atm);
-    AliasTable_float AliasTable_sfc(aliastable_weights_sfc);   
+    AliasTable AliasTable_atm(aliastable_weights_atm);
+    AliasTable AliasTable_sfc(aliastable_weights_sfc);   
 
 
     
@@ -438,8 +433,8 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     }
 
 
-    std::vector<float> field_atm_heating_rates(n_volumes);
-    std::vector<float> field_sfc_heating_rates(n_tiles);
+    std::vector<Real> field_atm_heating_rates(n_volumes);
+    std::vector<Real> field_sfc_heating_rates(n_tiles);
     for (int i = 0; i < itot; i++)
     {
         for (int j = 0; j < jtot; j++)
@@ -447,13 +442,13 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
             for (int k = 0; k < ktot; k++)
             {
                 int idx_atm =  i * ktot * jtot + j * ktot + k;
-                float dz = arr_dz[i];
-                field_atm_heating_rates[idx_atm] = field_atm_netto_power[idx_atm] / (cfloat::RHO * cfloat::CP * dx * dy * dz) * 86400;
+                Real dz = arr_dz[i];
+                field_atm_heating_rates[idx_atm] = field_atm_netto_power[idx_atm] / (constants::RHO * constants::CP * dx * dy * dz) * 86400;
 
                 if (i == 0)
                 {
                     int idx_sfc = j * ktot + k;
-                    field_sfc_heating_rates[idx_sfc] = field_sfc_netto_power[idx_sfc] / (cfloat::RHO * cfloat::CP * dx * dy) * 86400;
+                    field_sfc_heating_rates[idx_sfc] = field_sfc_netto_power[idx_sfc] / (constants::RHO * constants::CP * dx * dy) * 86400;
                 }
             }
         }
@@ -464,7 +459,7 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
     if (OUTPUT_3D)
     {
         std::ostringstream oss_Nphot;
-        oss_Nphot << std::fixed << std::setprecision(2) << (float) std::log2(Nphot);
+        oss_Nphot << std::fixed << std::setprecision(2) << (Real) std::log2(Nphot);
         std::string atm_output_name = "hr_3D_atm_"   + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
         std::string sfc_output_name = "flux_3D_sfc_" + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
         std::string TOA_output_name = "flux_3D_TOA_" + CASE + "_Nphot" + oss_Nphot.str() + "_" + INTERCELL_TECHNIQUE + "_Pesc" + std::to_string(Pesc_mode) + "_scatter" + std::to_string(enable_scattering) + ".dat";
@@ -474,13 +469,34 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
         int atm_dims[3] = {itot, jtot, ktot};
         int sfc_dims[2] = {jtot, ktot};
 
-        
+        std::vector<float> field_atm_heating_rates_f(n_volumes);
+        std::vector<float> field_sfc_fluxes_f(n_tiles);
+        std::vector<float> field_TOA_fluxes_f(n_tiles);
+
+        for (int i = 0; i < itot; i++)
+        {
+            for (int j = 0; j < jtot; j++)
+            {
+                for (int k = 0; k < ktot; k++)
+                {
+                    long int idx = i*jtot*ktot + j*ktot + k;
+                    field_atm_heating_rates_f[idx] = static_cast<float>(field_atm_heating_rates[idx]);
+
+                    if (i == 0)
+                    {
+                        field_sfc_fluxes_f[idx] = static_cast<float>(field_sfc_netto_power[idx]);
+                        field_TOA_fluxes_f[idx] = static_cast<float>(field_TOA_netto_power[idx]);
+                    }
+                }
+            }
+        }
+
         atm_output.write(reinterpret_cast<char*>(atm_dims), sizeof(atm_dims));
-        atm_output.write(reinterpret_cast<char*>(field_atm_heating_rates.data()), sizeof(float)*n_volumes);
+        atm_output.write(reinterpret_cast<char*>(field_atm_heating_rates_f.data()), sizeof(float)*n_volumes);
         sfc_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
-        sfc_output.write(reinterpret_cast<char*>(field_sfc_netto_power.data()), sizeof(float)*n_tiles);
+        sfc_output.write(reinterpret_cast<char*>(field_sfc_fluxes_f.data()), sizeof(float)*n_tiles);
         TOA_output.write(reinterpret_cast<char*>(sfc_dims), sizeof(sfc_dims));
-        TOA_output.write(reinterpret_cast<char*>(field_TOA_netto_power.data()), sizeof(float)*n_tiles);
+        TOA_output.write(reinterpret_cast<char*>(field_TOA_fluxes_f.data()), sizeof(float)*n_tiles);
         atm_output.close();
         sfc_output.close();
         TOA_output.close();
@@ -488,12 +504,12 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
 
 
     // Making 1D for comparing against plane-parallel
-    std::vector<float> arr_atm_heating_rates_1D(itot);
+    std::vector<Real> arr_atm_heating_rates_1D(itot);
 
     // Averaging the horizontal directions
     for (int i = 0; i < itot; i++)
     {
-        std::vector<float> horizontal_values(jtot*ktot);
+        std::vector<Real> horizontal_values(jtot*ktot);
         for (int j = 0; j < jtot; j++)
         {
             for (int k = 0; k < ktot; k++)
@@ -503,15 +519,15 @@ std::vector<float> run_MC(const std::vector<float>& arr_z,
                 horizontal_values[idx_horizontal] = field_atm_heating_rates[idx_atm];
             }
         }
-        arr_atm_heating_rates_1D[i] = std::accumulate(horizontal_values.begin(), horizontal_values.end(), 0.0) / (jtot*ktot);
+        arr_atm_heating_rates_1D[i] = std::accumulate(horizontal_values.begin(), horizontal_values.end(), static_cast<Real>(0.)) / (jtot*ktot);
 
     }
 
     // MC energy balance
-    float sum_of_net_phi_atm = std::accumulate(field_atm_netto_power.begin(), field_atm_netto_power.end(), 0.0);
-    float sum_of_net_phi_sfc = std::accumulate(field_sfc_netto_power.begin(), field_sfc_netto_power.end(), 0.0);
-    float sum_of_net_phi_TOA = std::accumulate(field_TOA_netto_power.begin(), field_TOA_netto_power.end(), 0.0);
-    float sum_of_sums_net_phi = sum_of_net_phi_atm + sum_of_net_phi_sfc + sum_of_net_phi_TOA;
+    Real sum_of_net_phi_atm = std::accumulate(field_atm_netto_power.begin(), field_atm_netto_power.end(), static_cast<Real>(0.));
+    Real sum_of_net_phi_sfc = std::accumulate(field_sfc_netto_power.begin(), field_sfc_netto_power.end(), static_cast<Real>(0.));
+    Real sum_of_net_phi_TOA = std::accumulate(field_TOA_netto_power.begin(), field_TOA_netto_power.end(), static_cast<Real>(0.));
+    Real sum_of_sums_net_phi = sum_of_net_phi_atm + sum_of_net_phi_sfc + sum_of_net_phi_TOA;
 
 
     if (print_EB)

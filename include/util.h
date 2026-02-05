@@ -12,29 +12,20 @@
 #include <numeric>
 #include <algorithm>
 #include <fstream>
+#include <limits>
 
-#ifdef __FAST_MATH__
-#define rsqrtf(x) __builtin_rsqrtf(x)
-#endif
+#include "precision.h"
 
 
 
 // Constants
-namespace cfloat
+namespace constants
 {
-    const float PI = 3.1415927;
-    const float RHO = 1.225;
-    const float CP = 1004;
-    const float u = pow(2, -24);
-    const float inv_2pow24 = 1.0f / 16777216.0f;
-}
-
-namespace cdouble
-{
-    const double PI = 3.141592653589793;
-    const double RHO = 1.225;
-    const double CP = 1004.;
-    const double u = pow(2, -53);
+    const Real PI = 3.14159265358979323846264338;
+    const Real RHO = 1.225;
+    const Real CP = 1004;
+    const Real u = pow(2, -24);
+    const Real inv_2pow24 = 1.0f / 16777216.0f;
 }
 
 
@@ -91,28 +82,14 @@ void LOGvars(const FirstVal first, const RestVals... rest)
 }
 
 
-inline double kahan_sum(const std::vector<double>& values) 
+inline Real kahan_sum(const std::vector<Real>& values) 
 {
     // from Mr. Chat
-    double sum = 0.0;
-    double c = 0.0;  // Compensation
-    for (double x : values) {
-        double y = x - c;
-        double t = sum + y;
-        c = (t - sum) - y;
-        sum = t;
-    }
-    return sum;
-}
-
-inline float kahan_sum(const std::vector<float>& values) 
-{
-    // from Mr. Chat
-    float sum = 0.0;
-    float c = 0.0;  // Compensation
-    for (float x : values) {
-        float y = x - c;
-        float t = sum + y;
+    Real sum = 0.0;
+    Real c = 0.0;  // Compensation
+    for (Real x : values) {
+        Real y = x - c;
+        Real t = sum + y;
         c = (t - sum) - y;
         sum = t;
     }
@@ -120,27 +97,15 @@ inline float kahan_sum(const std::vector<float>& values)
 }
 
 
-inline float estimate_max_numerical_float_error(float s)
+inline std::vector<Real> linspace(Real start, Real end, int N)
 {
-    return cfloat::u * s;
-}
+    std::vector<Real> arr_result(N);
 
-
-inline double estimate_max_numerical_double_error(double s)
-{
-    return cdouble::u * s;
-}
-
-
-inline std::vector<float> linspace(float start, float end, int N)
-{
-    std::vector<float> arr_result(N);
-
-    float step_size = (end - start)/(N - 1);
+    Real step_size = (end - start)/(N - 1);
 
     for (size_t i = 0; i < N; i++)
     {
-        arr_result[i] = start + (static_cast<float>(i) * step_size);
+        arr_result[i] = start + (static_cast<Real>(i) * step_size);
     }
 
     return arr_result;
@@ -148,23 +113,23 @@ inline std::vector<float> linspace(float start, float end, int N)
 
 
 
-
-inline float trapezoid(const std::vector<float>& arr_x,
-                        const std::vector<float>& arr_y)
+inline Real trapezoid(const std::vector<Real>& arr_x,
+                             const std::vector<Real>& arr_y)
 {
     size_t n = arr_x.size();
-    std::vector<float> values((n - 1));
+    std::vector<Real> values((n - 1));
 
     for (size_t i = 0; i < (n - 1); i++)
     {
-        float dx = arr_x[i+1] - arr_x[i];
-        float Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / 2.0;
+        Real dx = arr_x[i+1] - arr_x[i];
+        Real Y  = arr_y[i] * dx + (arr_y[i+1] - arr_y[i]) * dx / static_cast<Real>(2.);
         values[i] = Y;
     }
 
-    float result = std::accumulate(values.begin(), values.end(), 0.0f);
+    Real result = std::accumulate(values.begin(), values.end(), static_cast<Real>(0.));
     return result;
 }
+
 
 
 
@@ -197,14 +162,12 @@ struct Xoshiro256ss {
         return result;
     }
 
-    inline double next_double() {
-        // Take upper 53 bits of next() and convert to double in [0,1)
-        return (next() >> 11) * (1.0 / 9007199254740992.0);
-    }
+    inline Real next_real()
+    {
+        constexpr int mantissa_bits = std::numeric_limits<Real>::digits;
+        constexpr Real inv = Real(1.) / Real(std::uint64_t(1) << mantissa_bits);
 
-    inline float next_float() {
-        // Take upper 24 bits of next() and convert to float in [0,1)
-        return (next() >> 40) * cfloat::inv_2pow24;
+        return Real(next() >> (64 - mantissa_bits)) * inv;
     }
 
 private:
@@ -218,45 +181,48 @@ struct FastRNG {
     Xoshiro256ss rng;
     FastRNG(uint64_t seed) : rng(seed) {}
 
-    inline float uniform() { return rng.next_float(); }
+    inline Real uniform()
+    { 
+        return rng.next_real(); 
+    }
 
-    inline int uniform_int(int max_exclusive) {
+    inline int uniform_int(int max_exclusive) 
+    {
         return static_cast<int>(((unsigned __int128)rng.next() * (unsigned __int128)max_exclusive) >> 64);
     }
 };
 
 
-struct AliasTable_double {
-    std::vector<double> prob;
+
+struct AliasTable {
+    std::vector<Real> prob;
     std::vector<int> alias;
-    std::vector<double> weights;
+    std::vector<Real> weights;
     int n;
 
-    AliasTable_double(const std::vector<double>& weights_in) {
+    AliasTable(const std::vector<Real>& weights_in) {
         n = weights_in.size();
         prob.resize(n);
         alias.resize(n);
 
-        std::vector<double> scaled(weights_in);
-        double sum = std::accumulate(scaled.begin(), scaled.end(), 0.0);
+        std::vector<Real> scaled(weights_in);
+        Real sum = std::accumulate(scaled.begin(), scaled.end(), static_cast<Real>(0.));
         for (auto& w : scaled) w *= n / sum;
 
         weights.resize(n);
         for (int i = 0; i < n; i++) weights[i] = weights_in[i] / sum;
-        
-
 
         std::queue<int> small, large;
         for (int i = 0; i < n; ++i)
-            (scaled[i] < 1.0 ? small : large).push(i);
+            (scaled[i] < static_cast<Real>(1.) ? small : large).push(i);
 
         while (!small.empty() && !large.empty()) {
             int s = small.front(); small.pop();
             int l = large.front(); large.pop();
             prob[s] = scaled[s];
             alias[s] = l;
-            scaled[l] = scaled[l] + scaled[s] - 1.0;
-            (scaled[l] < 1.0 ? small : large).push(l);
+            scaled[l] = scaled[l] + scaled[s] - static_cast<Real>(1.);
+            (scaled[l] < static_cast<Real>(1.) ? small : large).push(l);
         }
 
         while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
@@ -265,65 +231,30 @@ struct AliasTable_double {
 
     inline int sample(FastRNG& rng) const {
         int i = rng.rng.next() % n;
-        double r = rng.rng.next_double();
+        float r = rng.rng.next_real();
         return (r < prob[i]) ? i : alias[i];
     }
 };
 
 
-struct AliasTable_float {
-    std::vector<float> prob;
-    std::vector<int> alias;
-    std::vector<float> weights;
-    int n;
+inline std::size_t count_lines(std::fstream& file) {
+    std::size_t count = 0;
+    std::string line;
 
-    AliasTable_float(const std::vector<float>& weights_in) {
-        n = weights_in.size();
-        prob.resize(n);
-        alias.resize(n);
+    while (std::getline(file, line))
+        ++count;
 
-        std::vector<float> scaled(weights_in);
-        float sum = std::accumulate(scaled.begin(), scaled.end(), 0.0f);
-        for (auto& w : scaled) w *= n / sum;
+    return count;
+}
 
-        weights.resize(n);
-        for (int i = 0; i < n; i++) weights[i] = weights_in[i] / sum;
-
-        std::queue<int> small, large;
-        for (int i = 0; i < n; ++i)
-            (scaled[i] < 1.0 ? small : large).push(i);
-
-        while (!small.empty() && !large.empty()) {
-            int s = small.front(); small.pop();
-            int l = large.front(); large.pop();
-            prob[s] = scaled[s];
-            alias[s] = l;
-            scaled[l] = scaled[l] + scaled[s] - 1.0;
-            (scaled[l] < 1.0 ? small : large).push(l);
-        }
-
-        while (!large.empty()) { prob[large.front()] = 1.0; large.pop(); }
-        while (!small.empty()) { prob[small.front()] = 1.0; small.pop(); }
-    }
-
-    inline int sample(FastRNG& rng) const {
-        int i = rng.rng.next() % n;
-        float r = rng.rng.next_float();
-        return (r < prob[i]) ? i : alias[i];
-    }
-};
-
-
-
-inline std::string f_dz_string(float value) {
+inline std::string f_dz_string(Real value) {
     std::ostringstream temp;
-    temp << std::fixed << std::setprecision(5) << value;
+    temp << std::fixed << std::setprecision(2) << value;
     std::string out = temp.str();
-    out = out.substr(0, out.size() - 3);
     return out;
 }
 
-inline std::string f_Pesccurve_name(int dx, int dy, float dz)
+inline std::string f_Pesccurve_name(int dx, int dy, Real dz)
 {
     std::string dzs = f_dz_string(dz);
     std::ostringstream out;
@@ -334,13 +265,10 @@ inline std::string f_Pesccurve_name(int dx, int dy, float dz)
 
 
 
-
-
-
-class LinearInterpolator_double {
+class LinearInterpolator {
 public:
-    LinearInterpolator_double(const std::vector<double>& x,
-                              const std::vector<double>& y)
+    LinearInterpolator(const std::vector<Real>& x,
+                       const std::vector<Real>& y)
         : xs(x), ys(y)
     {
         if (xs.size() != ys.size() || xs.size() < 2) {
@@ -356,60 +284,7 @@ public:
     }
 
     // interpolate y at value xq
-    inline double operator()(double xq) const {
-        // out-of-range -> throw
-        if (xq < xs.front() || xq > xs.back()) {
-            throw std::out_of_range("query x is outside interpolation range");
-        }
-
-        // find first element greater than xq
-        auto it = std::lower_bound(xs.begin(), xs.end(), xq);
-        
-        if (it == xs.begin())
-            return ys.front();
-        
-        if (it == xs.end())
-            return ys.back();
-
-        // indices of bounding interval
-        size_t i1 = it - xs.begin();
-        size_t i0 = i1 - 1;
-
-        double x0 = xs[i0], x1 = xs[i1];
-        double y0 = ys[i0], y1 = ys[i1];
-
-        // linear interpolation
-        double t = (xq - x0) / (x1 - x0);
-        return y0 + t * (y1 - y0);
-    }
-
-private:
-    std::vector<double> xs;
-    std::vector<double> ys;
-};
-
-
-
-class LinearInterpolator_float {
-public:
-    LinearInterpolator_float(const std::vector<float>& x,
-                              const std::vector<float>& y)
-        : xs(x), ys(y)
-    {
-        if (xs.size() != ys.size() || xs.size() < 2) {
-            throw std::invalid_argument("x and y arrays must have same size >= 2");
-        }
-
-        // ensure strictly increasing x
-        for (size_t i = 1; i < xs.size(); ++i) {
-            if (xs[i] <= xs[i - 1]) {
-                throw std::invalid_argument("x values must be strictly increasing");
-            }
-        }
-    }
-
-    // interpolate y at value xq
-    inline float operator()(float xq) const {
+    inline Real operator()(Real xq) const {
         // out-of-range -> throw
         if (xq < xs.front() || xq > xs.back()) {
             throw std::out_of_range("query x (" + std::to_string(xq) + ") is outside interpolation range");
@@ -428,111 +303,51 @@ public:
         size_t i1 = it - xs.begin();
         size_t i0 = i1 - 1;
 
-        float x0 = xs[i0], x1 = xs[i1];
-        float y0 = ys[i0], y1 = ys[i1];
+        Real x0 = xs[i0], x1 = xs[i1];
+        Real y0 = ys[i0], y1 = ys[i1];
 
         // linear interpolation
-        float t = (xq - x0) / (x1 - x0);
+        Real t = (xq - x0) / (x1 - x0);
         return y0 + t * (y1 - y0);
     }
 
 private:
-    std::vector<float> xs;
-    std::vector<float> ys;
+    std::vector<Real> xs;
+    std::vector<Real> ys;
 };
 
 
 
 
-
-
-
-inline std::size_t count_lines(std::fstream& file) {
-    std::size_t count = 0;
-    std::string line;
-
-    while (std::getline(file, line))
-        ++count;
-
-    return count;
-}
-
-struct Vec3double
+struct Vec3
 {
-    double x, y, z;
-    Vec3double(double x_in, double y_in, double z_in) : x(x_in), y(y_in), z(z_in) {}
+    Real x, y, z;
+    Vec3(Real x_in, Real y_in, Real z_in) : x(x_in), y(y_in), z(z_in) {}
 };
 
-
-struct Vec3float
+inline Vec3 generate_angle_HG(Real dx, Real dy, Real dz, Real g, FastRNG& rng)
 {
-    float x, y, z;
-    Vec3float(float x_in, float y_in, float z_in) : x(x_in), y(y_in), z(z_in) {}
-};
-
-inline Vec3float generate_angle_HG_float(float dx, float dy, float dz, float g, FastRNG& rng)
-{
-    float mu;
-    if (fabsf(g) < 1e-6f) {
-        mu = rng.uniform()*2.f - 1.f;
+    Real mu;
+    if (fabsf(g) < static_cast<Real>(1e-6)) {
+        mu = rng.uniform()*static_cast<Real>(2.) - static_cast<Real>(1.);
     } else {
-        float xi = rng.uniform();
-        float gg = g * g;
-        float temp = (1.f - gg) / (1.f - g + 2.f * g * xi);
-        mu = (1.f + gg - temp * temp) / (2.f * g);
+        Real xi = rng.uniform();
+        Real gg = g * g;
+        Real temp = (static_cast<Real>(1.) - gg) / (static_cast<Real>(1.) - g + static_cast<Real>(2.) * g * xi);
+        mu = (static_cast<Real>(1.) + gg - temp * temp) / (static_cast<Real>(2.) * g);
     }
 
-    float phi = rng.uniform()*2*cfloat::PI;
+    Real phi = rng.uniform()*static_cast<Real>(2.)*constants::PI;
 
-    float sin_phi = sinf(phi);
-    float cos_phi = cosf(phi);
-    float sin_theta = sqrtf(1.f - mu*mu);
-
-    // Creating tangent and bi-tangent lines (t and b)
-    float tdx, tdy, tdz, bdx, bdy, bdz, vdx, vdy, vdz;
-    float dx2dy2 = dx*dx + dy*dy;
-    float inv_tnorm = 1.f/sqrtf(dx2dy2);
-    float inv_bnorm = 1.f/sqrtf(dx2dy2 + dz*dz);
-
-    // t = up "x" u, normalized to length = 1
-    // b = u "x" t, normalized to length = 1
-
-    tdx = -dy * inv_tnorm;
-    tdy = dx * inv_tnorm;
-    tdz = 0.f;
-
-    bdx = -tdy * dz * inv_bnorm;
-    bdy = tdx * dz * inv_bnorm;
-    bdz = dx2dy2 * inv_tnorm * inv_bnorm;
-
-    vdx =   sin_theta * cos_phi * tdx +   sin_theta * sin_phi * bdx + mu * dx;
-    vdy =   sin_theta * cos_phi * tdy +   sin_theta * sin_phi * bdy + mu * dy;
-    vdz = /*sin_theta * cos_phi * tdz +*/ sin_theta * sin_phi * bdz + mu * dz; // tdz = 0.
-
-    Vec3float vec_out(vdx, vdy, vdz);
-
-    return vec_out;
-}   
-
-
-
-inline Vec3double generate_angle_HG_double(double dx, double dy, double dz, double g, FastRNG& rng)
-{
-    g = (g < 1e-6) ? 1e-6 : g;
-
-    double temp = (1 - g*g) / (1 - g + 2*g*rng.uniform());
-    double mu = (1 + g*g - temp*temp) / (2*g);
-    double phi = rng.uniform()*2*cdouble::PI;
-
-    double sin_phi = std::sin(phi);
-    double cos_phi = std::cos(phi);
-    double sin_theta = std::sqrt(1 - mu*mu);
+    Real sin_phi = std::sin(phi);
+    Real cos_phi = std::cos(phi);
+    Real sin_theta = std::sqrt(static_cast<Real>(1.) - mu*mu);
 
     // Creating tangent and bi-tangent lines (t and b)
-    double tdx, tdy, tdz, bdx, bdy, bdz, vdx, vdy, vdz;
-    double dx2dy2 = dx*dx + dy*dy;
-    double inv_tnorm = 1 / std::sqrt(dx2dy2);
-    double inv_bnorm = 1 / std::sqrt(dx2dy2 + dz*dz);
+    Real tdx, tdy, tdz, bdx, bdy, bdz, vdx, vdy, vdz;
+    Real dx2dy2 = dx*dx + dy*dy;
+    Real inv_tnorm = static_cast<Real>(1.)/std::sqrt(dx2dy2);
+    Real inv_bnorm = static_cast<Real>(1.)/std::sqrt(dx2dy2 + dz*dz);
 
     // t = up "x" u, normalized to length = 1
     // b = u "x" t, normalized to length = 1
@@ -545,15 +360,11 @@ inline Vec3double generate_angle_HG_double(double dx, double dy, double dz, doub
     bdy = tdx * dz * inv_bnorm;
     bdz = dx2dy2 * inv_tnorm * inv_bnorm;
 
-    vdx = sin_theta * cos_phi * tdx + sin_theta * sin_phi * bdx + mu * dx;
-    vdy = sin_theta * cos_phi * tdy + sin_theta * sin_phi * bdy + mu * dy;
-    vdz = sin_theta * cos_phi * tdz + sin_theta * sin_phi * bdz + mu * dz;
+    vdx =   sin_theta * cos_phi * tdx +   sin_theta * sin_phi * bdx + mu * dx;
+    vdy =   sin_theta * cos_phi * tdy +   sin_theta * sin_phi * bdy + mu * dy;
+    vdz = /*sin_theta * cos_phi * tdz +*/ sin_theta * sin_phi * bdz + mu * dz; // tdz = 0.
 
-    float inv_vnorm = 1/std::sqrt(vdx*vdx + vdy*vdy + vdz*vdz);
-
-    Vec3double vec_out(vdx*inv_vnorm, 
-                 vdy*inv_vnorm, 
-                 vdz*inv_vnorm);
+    Vec3 vec_out(vdx, vdy, vdz);
 
     return vec_out;
 }   
